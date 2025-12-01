@@ -1,3 +1,13 @@
+.idea/
+dataset/
+preprocessing/enhance/enhanced/
+preprocessing/dehaze/dehazed/
+preprocessing/dehaze/enhanced/
+visual_localization/ckpt/
+image_matches_results/
+logs/
+results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

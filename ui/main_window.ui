@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1920</width>
+    <height>1080</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>无人相对导航全数字仿真系统</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="1" column="0">
+     <widget class="QGraphicsView" name="mapView"/>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1920</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>菜单</string>
+    </property>
+    <addaction name="action_new"/>
+    <addaction name="action_open"/>
+    <addaction name="action_save"/>
+    <addaction name="action_saveAs"/>
+    <addaction name="action_exit"/>
+   </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>视觉导航</string>
+    </property>
+    <widget class="QMenu" name="menu_4">
+     <property name="title">
+      <string>图像预处理</string>
+     </property>
+     <addaction name="action_dehaze"/>
+     <addaction name="action_enhance"/>
+    </widget>
+    <addaction name="action_load_config"/>
+    <addaction name="menu_4"/>
+    <addaction name="action_simulate"/>
+   </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="font">
+     <font>
+      <pointsize>12</pointsize>
+     </font>
+    </property>
+    <property name="title">
+     <string>帮助</string>
+    </property>
+    <addaction name="action_about"/>
+   </widget>
+   <widget class="QMenu" name="menu_5">
+    <property name="title">
+     <string>设置</string>
+    </property>
+    <widget class="QMenu" name="menu_6">
+     <property name="title">
+      <string>界面风格</string>
+     </property>
+     <addaction name="actionFusion"/>
+     <addaction name="actionWindows"/>
+     <addaction name="actionGTK"/>
+    </widget>
+    <widget class="QMenu" name="menu_7">
+     <property name="title">
+      <string>字体大小</string>
+     </property>
+     <addaction name="action_font_small"/>
+     <addaction name="action_font_medium"/>
+     <addaction name="action_font_large"/>
+    </widget>
+    <addaction name="separator"/>
+    <addaction name="menu_7"/>
+    <addaction name="menu_6"/>
+    <addaction name="action_bg_mode"/>
+    <addaction name="action_restore_config"/>
+   </widget>
+   <widget class="QMenu" name="menu_8">
+    <property name="title">
+     <string>统计分析</string>
+    </property>
+    <addaction name="action_display_matches"/>
+    <addaction name="action_stats_register"/>
+    <addaction name="action_evo_display"/>
+    <addaction name="action_stats_ekf"/>
+   </widget>
+   <addaction name="menu"/>
+   <addaction name="menu_2"/>
+   <addaction name="menu_8"/>
+   <addaction name="menu_5"/>
+   <addaction name="menu_3"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="font">
+    <font>
+     <pointsize>12</pointsize>
+    </font>
+   </property>
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <property name="styleSheet">
+    <string notr="true"/>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_start"/>
+   <addaction name="separator"/>
+   <addaction name="action_stop"/>
+   <addaction name="separator"/>
+   <addaction name="action_clear"/>
+   <addaction name="separator"/>
+   <addaction name="action_resize"/>
+  </widget>
+  <action name="action_new">
+   <property name="text">
+    <string>新建</string>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>12</pointsize>
+    </font>
+   </property>
+  </action>
+  <action name="action_load_config">
+   <property name="text">
+    <string>加载配置文件</string>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>12</pointsize>
+    </font>
+   </property>
+  </action>
+  <action name="action_simulate">
+   <property name="text">
+    <string>开始导航</string>
+   </property>
+  </action>
+  <action name="action_5">
+   <property name="text">
+    <string>统计分析</string>
+   </property>
+  </action>
+  <action name="action_about">
+   <property name="text">
+    <string>关于</string>
+   </property>
+  </action>
+  <action name="action_enhance">
+   <property name="text">
+    <string>图像增强</string>
+   </property>
+  </action>
+  <action name="action_dehaze">
+   <property name="text">
+    <string>图像去雾</string>
+   </property>
+  </action>
+  <action name="action_save">
+   <property name="text">
+    <string>保存</string>
+   </property>
+  </action>
+  <action name="action_saveAs">
+   <property name="text">
+    <string>另存为</string>
+   </property>
+  </action>
+  <action name="action_preference">
+   <property name="text">
+    <string>首选项</string>
+   </property>
+  </action>
+  <action name="action_exit">
+   <property name="text">
+    <string>退出</string>
+   </property>
+  </action>
+  <action name="action_open">
+   <property name="text">
+    <string>打开</string>
+   </property>
+  </action>
+  <action name="action_start">
+   <property name="text">
+    <string>开始</string>
+   </property>
+  </action>
+  <action name="action_stop">
+   <property name="text">
+    <string>停止</string>
+   </property>
+  </action>
+  <action name="action_clear">
+   <property name="text">
+    <string>清除绘制</string>
+   </property>
+   <property name="iconText">
+    <string>清除绘制</string>
+   </property>
+   <property name="toolTip">
+    <string>清除绘制</string>
+   </property>
+  </action>
+  <action name="action_resize">
+   <property name="text">
+    <string>适合窗口</string>
+   </property>
+  </action>
+  <action name="action_bg_mode">
+   <property name="text">
+    <string>深色主题</string>
+   </property>
+  </action>
+  <action name="actionFusion">
+   <property name="text">
+    <string>Fusion</string>
+   </property>
+  </action>
+  <action name="actionWindows">
+   <property name="text">
+    <string>Windows</string>
+   </property>
+  </action>
+  <action name="actionGTK">
+   <property name="text">
+    <string>GTK+</string>
+   </property>
+  </action>
+  <action name="action_font_small">
+   <property name="text">
+    <string>小
+</string>
+   </property>
+  </action>
+  <action name="action_font_medium">
+   <property name="text">
+    <string>中</string>
+   </property>
+  </action>
+  <action name="action_font_large">
+   <property name="text">
+    <string>大</string>
+   </property>
+  </action>
+  <action name="action_display_matches">
+   <property name="text">
+    <string>查看配准结果</string>
+   </property>
+  </action>
+  <action name="action_evo_display">
+   <property name="text">
+    <string>导航轨迹绘制</string>
+   </property>
+  </action>
+  <action name="action_stats_ekf">
+   <property name="text">
+    <string>定位误差分析</string>
+   </property>
+  </action>
+  <action name="action_stats_register">
+   <property name="text">
+    <string>配准精度统计</string>
+   </property>
+  </action>
+  <action name="action_restore_config">
+   <property name="text">
+    <string>恢复默认配置文件</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,24 @@
+QMainWindow { background-color: #f0f0f0; }
+QWidget { background-color: #f0f0f0; color: #000000; }
+
+QPushButton {
+    background-color: #e0e0e0;
+    color: #000000;
+    border-radius: 4px;
+    padding: 4px;
+}
+QPushButton:hover {
+    background-color: #d0d0d0;
+}
+QPushButton:pressed {
+    background-color: #c0c0c0;
+}
+
+QMenuBar { background-color: #eaeaea; color: black; }
+QToolBar { background: #e0e0e0; }
+
+QLineEdit {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #999999;
+    border-radius: 4px;
