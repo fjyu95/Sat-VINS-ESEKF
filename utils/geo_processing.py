@@ -124,6 +124,8 @@ def calculate_ground_coordinates(lat_deg: float,
                                  ground_height: float,
                                  angle_north_deg: float,
                                  angle_east_deg: float,
+                                 north_bias=0,
+                                 east_bias=0,
                                  ) -> tuple[float, float]:
     """
     根据无人机的位置、高度和相机的指向，估算图像中心点的地理坐标。
@@ -145,8 +147,8 @@ def calculate_ground_coordinates(lat_deg: float,
 
     # --- 步骤 1: 将所有角度输入转换为弧度 ---
     lat_rad = math.radians(lat_deg)
-    angle_north_rad = math.radians(-(angle_north_deg - 1.75))  # 系统误差修正
-    angle_east_rad = math.radians(-angle_east_deg)
+    angle_north_rad = math.radians(-(angle_north_deg + north_bias))  # 系统误差修正
+    angle_east_rad = math.radians(-(angle_east_deg + east_bias))
 
     # --- 步骤 2: 计算地面偏移量 (米) ---
     # 使用正切函数计算在地面上的北向和东向偏移
@@ -195,7 +197,7 @@ def calculate_ground_coordinates(lat_deg: float,
     return center_lon_deg, center_lat_deg
 
 
-def crop_basemap_from_pyramid(root_dir, lon, lat, dw, dh, top_layer, tar_layer, resolution, tile_size):
+def crop_basemap_from_pyramid(root_dir, lon, lat, dw, dh, tar_layer, resolution, tile_size, tif_name_format):
     """
     1、wgs84经纬度转web墨卡托投影坐标
     2、在塔顶层级获取左上角坐标，并计算坐标偏移量
@@ -210,19 +212,19 @@ def crop_basemap_from_pyramid(root_dir, lon, lat, dw, dh, top_layer, tar_layer, 
 
     x, y = x - dw / 2, y + dh / 2  # 左上角投影坐标
 
-    top_tif_path = sorted(Path(root_dir).glob(f'L{top_layer}/*.tif'))[0]
-    prefix = '_'.join(top_tif_path.stem.split('_')[:3])
+    top_tif_path = sorted(Path(root_dir).glob(f'L{tar_layer}/*.tif'))[0]
+    row0 = int(top_tif_path.stem.split('_')[-2][1:])
+    col0 = int(top_tif_path.stem.split('_')[-1][1:])
+
     with rasterio.open(top_tif_path) as src:
         x0, y0 = src.xy(0, 0, offset='ul')  # 金字塔左上角坐标
-        # x0, y0 = src.transform.c, src.transform.f
-        # row, col = rowcol(src.transform, x0, y0)  # 坐标反算
 
     dx, dy = x - x0, y0 - y
     patch_width, patch_height = map(lambda t: math.ceil(t / resolution), [dw, dh])
 
     d_dist = tile_size * resolution
-    x_tile = int(dx / d_dist) + 1  # 图像索引是从1开始
-    y_tile = int(dy / d_dist) + 1
+    x_tile = int(dx / d_dist) + col0  # 图像索引是从1开始
+    y_tile = int(dy / d_dist) + row0
 
     delta_x_dist = divmod(dx, d_dist)
     delta_y_dist = divmod(dy, d_dist)
@@ -238,7 +240,7 @@ def crop_basemap_from_pyramid(root_dir, lon, lat, dw, dh, top_layer, tar_layer, 
     src_files = []
     for i, row in enumerate(range(y_tile, y_tile + y_tile_num)):
         for j, col in enumerate(range(x_tile, x_tile + x_tile_num)):
-            tif_name = f'{prefix}_{row}-{col}.tif'
+            tif_name = tif_name_format.format(layer=tar_layer, row=row, col=col)
             path = Path(root_dir) / f'L{tar_layer}' / tif_name
 
             try:
@@ -275,6 +277,48 @@ def query_DEM(path: str, arr) -> float:
     out_lon, out_lat, alts = transformer.transform(lons, lats, height)
 
     return alts
+
+
+def gsd_ground(H, p, f):
+    # H: 相机高度(m); p,f 单位一致（m）
+    return H * p / f
+
+
+def gsd_oblique(H, p, f, theta):
+    res = H * p / f
+    theta = math.radians(theta)
+    s = math.cos(theta)
+    res_vertical = res / s  # 垂直光轴方向
+    res_parallel = res_vertical / s  # 沿光轴方向
+    res_mean = (res_vertical + res_parallel) / 2
+
+    return res_vertical, res_parallel, res_mean
+
+
+def get_ground_resolutions(record, config):
+    h1 = record['飞机海拔高度(米)']
+    h2, tile_north, tile_east = (
+        record['机下点海拔高度(米)'], record['视场中心俯仰角(度)'], record['视场中心横滚角(度)'])
+
+    H = h1 - h2
+    f = config['camera_focal_length'] * 1e-3
+    p = config['camera_sensor_pixel_size'] * 1e-6
+    angle = np.max(np.abs([tile_north, tile_east]))
+
+    return gsd_oblique(H, p, f, angle)
+
+
+def get_xy_resolutions(res_vertical, res_parallel, north_angle, east_angle, theta):
+    north_angle, east_angle = map(abs, [north_angle, east_angle])
+    if east_angle > north_angle:
+        res_x, res_y = res_parallel, res_vertical
+    else:
+        res_x, res_y = res_vertical, res_parallel
+
+    if theta % 90 == 0:
+        res_x, res_y = res_y, res_x
+
+    return res_x, res_y
 
 
 if __name__ == '__main__':

@@ -1,32 +1,36 @@
 dataset_root_dir: "dataset"
 aerial_images_dir: "aerial_images"
 pyramid_images_dir: "pyramid_images"
-dem_dir: "DEM"
-basemap_dir: "basemap"
+tif_name_format: "tile_z{layer}_y{row}_x{col}.tif"
+dem_path: "DEM/ALPSMLC30_N018E109_DSM.tif"
+basemap_path: "basemap/L16.tif"
 
-rotation_angle: -1 # optional: -1, 0, 90, 180, 270 degrees, clockwise
-x_resolution: 0.125 # units: meters per pixel
-y_resolution: 0.23
 start_frame_idx: 0 # inclusive
 end_frame_idx: -1 # inclusive
+rotation_angle: -1 # optional: -1, 0, 90, 180, 270 degrees, clockwise
 
 clahe_clip_limit: 2.0 # CLAHE clip limit for contrast enhancement
+
+camera_intrinsics: [ 232707, 0, 2372, 0, 232707, 1897 ] # fx, 0, cx, 0, fy, cy
+camera_distortion: [ 0.0, 0.0, 0.0, 0.0, 0.0 ]
+camera_focal_length: 1580 # camera physical focal length, units: mm
+camera_sensor_pixel_size: 6.4 # camera physical sensor pixel size, units: um
+camera_axis_north_bias: -2. # used to crop satellite image for registration, units: degree
+camera_axis_east_bias: 0
 
 scale_factor_crop_pyramid: 1.5 # >1 to crop more
 register_ransacReprojThreshold: 7.0 # loftr image registration ransac reprojection threshold
 register_min_inliers: 20 # loftr image registration minimum inliers after ransac
 register_min_ratio: 0.05 # loftr image registration minimum ratio after ransac
 
-camera_intrinsics: [ 232707, 0, 2372, 0, 232707, 1897 ]
-camera_distortion: [ 0.0, 0.0, 0.0, 0.0, 0.0 ]
 pnp_ransac_reprojectionError: 8.0
 pnp_ransac_confidence: 0.99
 pnp_ransac_iterations: 500
 PnPRefineLM_min_inliers: 10 # threshold to enable LM refinement
 PnPRefineLM_maxIterations: 100
 
-ekf_sigma_p: 5 # in meters
+ekf_sigma_p: 5 # determined by the accuracy of visual localization, units: meters
 ekf_sigma_q: 0.015 # in rad
-ekf_fusion_threshold: 1200.0 # threshold if use pnp result for ekf fusion, units: meters
+ekf_fusion_threshold: 1000.0 # threshold if use pnp result for ekf fusion, units: meters
 
 DEBUG: False

@@ -1,4 +1,5 @@
 .idea/
+tmp/
 dataset/
 preprocessing/enhance/enhanced/
 preprocessing/dehaze/dehazed/
@@ -7,6 +8,7 @@ visual_localization/ckpt/
 image_matches_results/
 logs/
 results/
+/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

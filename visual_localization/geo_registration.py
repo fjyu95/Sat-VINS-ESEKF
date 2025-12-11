@@ -19,7 +19,8 @@ from rasterio.transform import rowcol, xy
 from transformers import AutoImageProcessor, AutoModel
 
 from utils.parser import parse_txt_gbk
-from utils.geo_processing import wgs842ecef, calculate_ground_coordinates, query_DEM, crop_basemap_from_pyramid
+from utils.geo_processing import wgs842ecef, calculate_ground_coordinates, query_DEM, crop_basemap_from_pyramid, \
+    gsd_oblique, search_closest_pyramid_level
 
 from utils.core_utils import timer, rotate_points, rotate_by_90_multiple, get_affine_transform, save_images
 from utils.viz import draw_matches_fixed_width_centered, draw_loftr_matches
@@ -62,17 +63,21 @@ def coarse_alignment(image1, image2, angles):
     return theta
 
 
-def get_rotation_angle(path, record, pts3d_geo, x_res, y_res, pyramid_path, top_layer, best_level, best_res, tile_size,
-                       **kwargs):
+def get_rotation_angle(path, record, pts3d_geo, pyramid_path, best_level, best_res, tile_size, mean_res, config):
     img = cv2.imread(path.as_posix(), cv2.IMREAD_UNCHANGED)
     h, w = img.shape[:2]  # 3794, 4744
-    dw, dh = x_res * w, y_res * h
-    center_lon, center_lat = calculate_ground_coordinates(*pts3d_geo, record['机下点海拔高度(米)'],
-                                                          record['视场中心俯仰角(度)'], record['视场中心横滚角(度)'])
 
-    cropped, _ = crop_match_basemap(center_lon, center_lat, dw, dh, pyramid_path, top_layer, best_level,
-                                    best_res, tile_size, keep_square=True, crop_scale=kwargs['crop_scale'])
-    resized = cv2.resize(img, None, fx=x_res / best_res, fy=y_res / best_res)
+    height, tile_north, tile_east = (
+        record['机下点海拔高度(米)'], record['视场中心俯仰角(度)'], record['视场中心横滚角(度)'])
+    center_lon, center_lat = calculate_ground_coordinates(*pts3d_geo, height, tile_north, tile_east,
+                                                          config['camera_axis_north_bias'],
+                                                          config['camera_axis_east_bias'])
+    tif_name_format = config['tif_name_format']
+    dw, dh = mean_res * w, mean_res * h
+    cropped, _ = crop_match_basemap(center_lon, center_lat, dw, dh, pyramid_path, best_level, best_res, tile_size,
+                                    tif_name_format, keep_square=True, crop_scale=config['scale_factor_crop_pyramid'])
+    ratio = mean_res / best_res
+    resized = cv2.resize(img, None, fx=ratio, fy=ratio)
 
     candidate_angles = list(range(0, 360, 90))
     theta = coarse_alignment(cropped, resized, candidate_angles)  # 也可以直接送入原图，但resized更快
@@ -235,14 +240,14 @@ def loftr_match(src_img, dst_img, filename='', **kwargs):
     return pts1_in, pts2_in, homo, stats, vis
 
 
-def crop_match_basemap(center_lon, center_lat, dw, dh, pyramid_path, top_layer, tar_layer, tar_resolution,
-                       tar_tile_size, crop_scale=1.5, keep_square=True):
+def crop_match_basemap(center_lon, center_lat, dw, dh, pyramid_path, tar_layer, tar_resolution, tar_tile_size,
+                       tif_name_format, crop_scale=1.5, keep_square=True):
     dw, dh = dw * crop_scale, dh * crop_scale
     if keep_square:  # 光轴倾斜参数在南北方向不稳定，推荐裁剪时保持正方形，留一定的缓冲余量
         dw = dh = (dw + dh) / 2
 
-    cropped, transform = crop_basemap_from_pyramid(pyramid_path, center_lon, center_lat, dw, dh, top_layer, tar_layer,
-                                                   tar_resolution, tar_tile_size)
+    cropped, transform = crop_basemap_from_pyramid(pyramid_path, center_lon, center_lat, dw, dh, tar_layer,
+                                                   tar_resolution, tar_tile_size, tif_name_format)
     return cropped, transform
 
 
@@ -267,7 +272,7 @@ def match_one_image(rotated, cropped, transform, dem_file, filename, **kwargs):
 
 
 def generate_matched_points(img, record, pts3d_geo, x_res, y_res, theta,
-                            pyramid_path, top_layer, best_level, best_res, tile_size,
+                            pyramid_path, best_level, best_res, tile_size, tif_name_format,
                             dem_file, purename, **kwargs):
     fx, fy = x_res / best_res, y_res / best_res
     resized = cv2.resize(img, None, fx=fx, fy=fy)  # 缩放到底图分辨率
@@ -281,10 +286,11 @@ def generate_matched_points(img, record, pts3d_geo, x_res, y_res, theta,
         dh, dw = dw, dh
 
     center_lon, center_lat = calculate_ground_coordinates(*pts3d_geo, record['机下点海拔高度(米)'],
-                                                          record['视场中心俯仰角(度)'], record['视场中心横滚角(度)'])
+                                                          record['视场中心俯仰角(度)'], record['视场中心横滚角(度)'],
+                                                          kwargs['north_bias'], kwargs['east_bias'])
 
-    cropped, transform = crop_match_basemap(center_lon, center_lat, dw, dh, pyramid_path, top_layer,
-                                            best_level, best_res, tile_size, crop_scale=kwargs['crop_scale'])
+    cropped, transform = crop_match_basemap(center_lon, center_lat, dw, dh, pyramid_path, best_level, best_res,
+                                            tile_size, tif_name_format, crop_scale=kwargs['crop_scale'])
 
     results = match_one_image(rotated, cropped, transform, dem_file, purename, **kwargs)
     if results is None:
@@ -297,5 +303,11 @@ def generate_matched_points(img, record, pts3d_geo, x_res, y_res, theta,
 
     home_src2rot = np.vstack([affine, [0, 0, 1]])
     homo_src2sat = homo_rot2sat @ home_src2rot
+
+    save_path = f'image_matches_results/matched_points_{purename}.npy'
+    arr = np.hstack([pts2d_src, pts_3d_ecef])
+    arr = np.ascontiguousarray(arr)
+    np.save(save_path, arr)
+    print(f'saved VL match points to {save_path}')
 
     return pts2d_src, pts_3d_ecef, pts2d_sat, homo_src2sat, xs, ys, rotated, stats, vis

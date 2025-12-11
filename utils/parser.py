@@ -49,22 +49,8 @@ def load_config(path="configs/base.yaml"):
     root_dir = config['dataset_root_dir']
     root_dir = Path(root_dir).resolve().as_posix()
     for k, v in config.items():
-        if k.endswith('_dir'):
+        if k.endswith('_dir') or k.endswith('_path'):
             config[k] = os.path.join(root_dir, config[k])
-
-    basemap_path = config['basemap_dir']
-    basemap_tif = next(Path(basemap_path).glob('*.tif'), None)
-    if not basemap_tif:
-        print("Error: no basemap tif file found in", basemap_path)
-        return None
-    config['basemap_path'] = basemap_tif.as_posix()
-
-    dem_dir = config['dem_dir']
-    dem_tif = next(Path(dem_dir).glob('*.tif'), None)
-    if not dem_tif:
-        print("Error: no DEM tif file found in", dem_dir)
-        return None
-    config['dem_path'] = dem_tif.as_posix()
 
     return config
 

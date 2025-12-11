@@ -14,7 +14,8 @@ import pymap3d as pm
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtGui import QImage
 
-from utils.geo_processing import search_closest_pyramid_level, get_pyramid_resolutions
+from utils.geo_processing import search_closest_pyramid_level, get_pyramid_resolutions, get_ground_resolutions, \
+    get_xy_resolutions
 from visual_localization.solve_uav import solve_uav
 
 from ESEKF_IMU.ekf_fusion import init_estimator, ekf_predict, ekf_update, load_imu_parameters
@@ -42,15 +43,19 @@ class EKFWorker(QObject):
         self.pyramid_dir = self.config['pyramid_images_dir']
         self.dem_path = self.config['dem_path']
         self.basemap_path = self.config['basemap_path']
+        self.tif_name_format = self.config['tif_name_format']
 
-        self.x_res, self.y_res = self.config['x_resolution'], self.config['y_resolution']
+        # self.x_res, self.y_res = self.config['x_resolution'], self.config['y_resolution']
+        # self.target_res = (self.x_res + self.y_res) / 2
         self.theta = self.config['rotation_angle']
-        self.target_res = (self.x_res + self.y_res) / 2
 
         self.kwargs_register = {'crop_scale': self.config['scale_factor_crop_pyramid'],
                                 'reproj_thresh': self.config['register_ransacReprojThreshold'],
                                 'min_inliers': self.config['register_min_inliers'],
-                                'min_ratio': self.config['register_min_ratio']}
+                                'min_ratio': self.config['register_min_ratio'],
+                                'north_bias': self.config['camera_axis_north_bias'],
+                                'east_bias': self.config['camera_axis_east_bias'],
+                                }
 
         self.kwargs_pnp = {'camera_intrinsics': self.config['camera_intrinsics'],
                            'camera_distortion': self.config['camera_distortion'],
@@ -70,21 +75,25 @@ class EKFWorker(QObject):
         if end_idx == -1:
             end_idx = len(files) - 1
 
-        self.pyramid_resolutions, self.pyramid_sizes = get_pyramid_resolutions(self.pyramid_dir)
-        self.best_level, self.best_res = search_closest_pyramid_level(self.pyramid_resolutions, self.target_res)
-        self.top_layer = next(iter(self.pyramid_resolutions))
-        self.tile_size = self.pyramid_sizes[self.best_level]
-
         imu_parameters = load_imu_parameters('configs/imu_parameters.yaml')
         record0 = parse_txt_gbk(str(files[start_idx].with_suffix('.txt')))
         self.geo0 = lat0, lon0, height0 = record0['飞机纬度(度)'], record0['飞机经度(度)'], record0['飞机海拔高度(米)']
         p0_ecef = pm.geodetic2ecef(*self.geo0)
         self.t0 = parse_timestamp(record0)
 
+        res_vertical, res_parallel, target_res = get_ground_resolutions(record0, config)
+        self.pyramid_resolutions, self.pyramid_sizes = get_pyramid_resolutions(self.pyramid_dir)
+        self.best_level, self.best_res = search_closest_pyramid_level(self.pyramid_resolutions, target_res)
+        self.top_layer = next(iter(self.pyramid_resolutions))
+        self.tile_size = self.pyramid_sizes[self.best_level]
+        print(f'selected pyramid level:{self.best_level} resloution:{self.best_res:.2f}m\n')
+
         if self.theta == -1:
-            self.theta = get_rotation_angle(files[start_idx], record0, self.geo0, self.x_res, self.y_res,
-                                            self.pyramid_dir, self.top_layer, self.best_level, self.best_res,
-                                            self.tile_size, **self.kwargs_register)
+            self.theta = get_rotation_angle(files[start_idx], record0, self.geo0, self.pyramid_dir, self.best_level,
+                                            self.best_res, self.tile_size, target_res, self.config)
+
+        tile_north, tile_east = record0['视场中心俯仰角(度)'], record0['视场中心横滚角(度)']
+        self.x_res, self.y_res = get_xy_resolutions(res_vertical, res_parallel, tile_north, tile_east, self.theta)
 
         with rasterio.open(self.basemap_path) as src:
             self.basemap_transform = src.transform
@@ -190,8 +199,8 @@ class EKFWorker(QObject):
 
         img = cv2.imread(self.final_files[self.i].as_posix(), -1)
         match_results = generate_matched_points(img, record, geo_pred, self.x_res, self.y_res, self.theta,
-                                                self.pyramid_dir, self.top_layer, self.best_level, self.best_res,
-                                                self.tile_size, self.dem_path, purename, **self.kwargs_register)
+                                                self.pyramid_dir, self.best_level, self.best_res, self.tile_size,
+                                                self.tif_name_format, self.dem_path, purename, **self.kwargs_register)
 
         if match_results is None:
             self.emit_position_signal(imu_lon, imu_lat)
@@ -230,7 +239,7 @@ class EKFWorker(QObject):
         x, y = wgs842Mercator_trans.transform(ekf_lon, ekf_lat)
         row, col = rowcol(self.basemap_transform, x, y)
         self.plane_position_signal.emit(col, row, self.i)
-        self.pnp_line_signal.emit(col, row, cx, cy, self.i)
+        self.pnp_line_signal.emit(col, row, cx, cy, self.i)  # 使用了VIO才画线
         self.ekf_progress_signal.emit(self.i, self.n_files - 1)
         self.n_vio += 1
 
