@@ -2,6 +2,12 @@
 
 基于地理配准的VINS飞行定位技术方案
 
+## 总体架构
+![alt text](architecture.png)
+
+## 核心算法流程
+![alt text](core_pipeline.png)
+
 ## 项目概述
 
 本项目实现了一套基于高精度鲁棒地理配准 + ESEKF的完整VINS定位方案，主要用于无人机飞行定位场景。系统通过图像预处理、地理配准、LOFTR鲁棒配准和ESEKF融合等核心模块，实现高精度的视觉惯性导航定位。
@@ -58,7 +64,11 @@
 
 ## 核心库
 
-- **地理处理**: pymap3d, pyproj, rasterio
+- **地理处理**: pymap3d pyproj, rasterio
+- 分别主要用于地理-空间直角，地理-投影，投影-像素，总体像素-投影-地理-直角
+  1. 用于经纬度、ECEF、ENU等空间坐标系转换（pm.geodetic2ecef(geo)）
+  2. 用于经纬度、高程和投影坐标系的转换（x, y = transformer.transform(lon, lat)）
+  3. 用于投影和像素坐标的转换（rowcol、xy函数）
 - **图像配准**: kornia, transformers
 - **数据分析、绘图**: numpy, pandas, scipy, matplotlib, opencv, evo
 - **可视化界面**: PyQt5
