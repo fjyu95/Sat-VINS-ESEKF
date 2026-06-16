@@ -8,7 +8,6 @@ visual_localization/ckpt/
 image_matches_results/
 logs/
 results/
-/*.png
 *.pdf
 
 # Byte-compiled / optimized / DLL files
