@@ -12,6 +12,8 @@ results/
 !architecture.png
 !core_pipeline.png
 *.pdf
+*.jpg
+test_data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -241,9 +240,7 @@ class MainWindow(QMainWindow):
             dist = np.linalg.norm(diff, axis=1)
 
             fig, ax = plot_bar_line_with_stats(dist, title='ESEKF视觉导航误差统计')
-            dt = datetime.now().strftime('%Y%m%d_%H%M%S')
-            # save_path = f'navi_accuracy_{dt}.png'
-            save_path = f'navi_accuracy.png'
+            save_path = 'navi_accuracy.png'
             fig.savefig(save_path, dpi=300)
             print(f'saved to {save_path}')
         except Exception as e:
@@ -300,9 +297,6 @@ class MainWindow(QMainWindow):
     def btn_load_config(self):
         default_config_dir = Path('configs').resolve().as_posix()
         path, _ = QFileDialog.getOpenFileName(self, "打开文件", default_config_dir, "Config Files (*.yaml)")
-        if not path:
-            return
-
         try:
             config = load_config(path)
             if config:
@@ -439,8 +433,6 @@ class MainWindow(QMainWindow):
             self.action_simulate.setText("暂停导航")
             self.action_stop.setEnabled(True)
             self.clear_scene()
-            self.cur_plane_position = None
-            self.plane_label_position = None
             print(">>> 开始 EKF 线程")
         else:
             if not self.ekf_paused:
@@ -491,9 +483,10 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "关于",
+            # "<b>软件名称：</b> 相对导航和协同作战精度设计开发工具<br>"
             "<b>软件名称：</b> 无人相对导航全数字仿真系统<br>"
             "<b>版本号：</b> v1.2<br>"
-            "<b>完成单位：</b> xxx<br>"
+            "<b>完成单位：</b> 西北工业大学<br>"
         )
 
     def update_point(self, x, y, idx):
@@ -502,7 +495,7 @@ class MainWindow(QMainWindow):
         pt.setZValue(999)
 
         distance = -1
-        if self.cur_plane_position:  # 存在上一个飞机位置时,才画轨迹线
+        if self.cur_plane_position:
             pen = QPen(QColor(0, 255, 0), r, Qt.SolidLine)
             self.scene.addLine(self.cur_plane_position[0], self.cur_plane_position[1], x, y, pen)  # 画飞行轨迹
 
@@ -559,6 +552,8 @@ class MainWindow(QMainWindow):
         self.scene.addLine(x1, y1, x2, y2, pen)
 
     def clear_scene(self):
+        # scene.clear()
+
         # 清空 scene 但保留底图
         for item in self.scene.items():
             if item is not self.background:  # 保留底图
