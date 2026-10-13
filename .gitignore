@@ -7,7 +7,7 @@ preprocessing/dehaze/enhanced/
 visual_localization/ckpt/
 image_matches_results/
 logs/
-results/
+results*/
 /*.png
 !architecture.png
 !core_pipeline.png
