@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QGroupBox, QPushButton,
-    QFileDialog, QMessageBox, QLabel,
+    QFileDialog, QMessageBox, QLabel, QMenu,
 )
 
 from utils.parser import load_config
@@ -68,10 +68,18 @@ class DataPreprocessPage(_DataLayerPage):
 
         pre_group = QGroupBox("数据预处理层")
         pre_layout = QVBoxLayout(pre_group)
-        for text, slot in (("读入数据", self.load_data),
-                           ("数据预处理", self.preprocess),
-                           ("发送至融合层", self.send_to_fusion)):
-            pre_layout.addWidget(self._make_button(text, slot))
+        pre_layout.addWidget(self._make_button("读入数据", self.load_data))
+
+        # 「数据预处理」为下拉菜单按钮，包含图像去雾 / 图像增强两个下级选项
+        btn_preprocess = QPushButton("数据预处理")
+        btn_preprocess.setMinimumHeight(32)
+        menu = QMenu(self)
+        menu.addAction("图像去雾", self.btn_dehaze)
+        menu.addAction("图像增强", self.btn_enhance)
+        btn_preprocess.setMenu(menu)
+        pre_layout.addWidget(btn_preprocess)
+
+        pre_layout.addWidget(self._make_button("发送至融合层", self.send_to_fusion))
         self._root.addWidget(pre_group)
         self._finish_layout()
 
@@ -101,18 +109,12 @@ class DataPreprocessPage(_DataLayerPage):
             files = [p for p in files if Path(p).name.startswith(prefix)]
         return sorted(files)
 
-    def preprocess(self):
-        """数据预处理：先去雾、再增强（链式执行，结果写入共享上下文）。"""
-        if not self.ctx.config:
-            QMessageBox.warning(self, "提示", "请先通过「融合方案配置」加载配置文件。", QMessageBox.Ok)
-            return
-
+    # 只能对原图去雾，不能先增强再去雾
+    def btn_dehaze(self):
         images_dir = Path(self.ctx.config['aerial_images_dir'])
         if self.ctx.config['DEBUG']:
             images_dir = Path('preprocessing/dehaze/test_data')  # for debug
-        if not images_dir.exists():
-            QMessageBox.warning(self, "提示", f"航拍图像目录不存在：\n{images_dir}", QMessageBox.Ok)
-            return
+        output_dir = images_dir.parent.resolve() / 'dehazed'
 
         sorted_files = self._list_images(images_dir)
         if not sorted_files:
@@ -121,40 +123,50 @@ class DataPreprocessPage(_DataLayerPage):
 
         try:
             img = cv2.imread(sorted_files[0], -1)
-            if img is not None and img.ndim == 2:
+            if img.ndim == 2:
                 QMessageBox.information(self, "操作无效", f"暂不支持灰度图像去雾！\n{images_dir}", QMessageBox.Ok)
                 return
         except Exception as e:
             print(f'Exception {images_dir}, {e}')
             return
 
-        output_dir = images_dir.parent.resolve() / 'dehazed'
         self._set_status("图像去雾中……")
         self._worker = run_preprocess(self, sorted_files, output_dir.as_posix(),
-                                      dehaze_image, 'dehazed', on_finished=self._on_dehazed)
+                                      dehaze_image, 'dehazed', on_finished=self.handle_results)
 
-    def _on_dehazed(self, func_name, output_dir):
-        self.ctx.dehazed_dir = output_dir
-        print(f'>>> dehazed images saved to {output_dir}')
+    def btn_enhance(self):
+        if self.ctx.dehazed_dir:
+            images_dir = Path(self.ctx.dehazed_dir)
+        else:
+            images_dir = Path(self.ctx.config['aerial_images_dir'])
+        output_dir = images_dir.parent.resolve() / 'enhanced'
 
-        # 链式执行图像增强：仅处理 dehazed_* 结果
-        images_dir = Path(output_dir)
-        enhance_dir = images_dir.parent.resolve() / 'enhanced'
-        files = self._list_images(images_dir, prefix='dehazed_')
-        if not files:
-            self._set_status("去雾完成（无结果用于增强）")
+        # 若已有去雾结果，只增强去雾过的图像，过滤 combined
+        prefix = 'dehazed_' if self.ctx.dehazed_dir else None
+        sorted_files = self._list_images(images_dir, prefix=prefix)
+        if not sorted_files:
+            QMessageBox.warning(self, "提示", f"未在目录中找到图像：\n{images_dir}", QMessageBox.Ok)
             return
 
         kwargs = {'clip_limit': self.ctx.config['clahe_clip_limit']}
         self._set_status("图像增强中……")
-        self._worker = run_preprocess(self, files, enhance_dir.as_posix(),
+        self._worker = run_preprocess(self, sorted_files, output_dir.as_posix(),
                                       clahe_enhance, 'enhanced',
-                                      on_finished=self._on_enhanced, **kwargs)
+                                      on_finished=self.handle_results, **kwargs)
 
-    def _on_enhanced(self, func_name, output_dir):
-        self.ctx.enhanced_dir = output_dir
-        self._set_status(f"预处理完成，结果：{output_dir}")
-        QMessageBox.information(self, "处理成功", f"图像预处理完成，结果保存在：\n{output_dir}", QMessageBox.Ok)
+    def handle_results(self, func_name, output_dir):
+        if func_name == 'dehazed':
+            self.ctx.dehazed_dir = output_dir
+            self._set_status(f"图像去雾完成：{output_dir}")
+            QMessageBox.information(self, "处理成功", f"图像去雾结果保存在 {output_dir}", QMessageBox.Ok)
+        elif func_name == 'enhanced':
+            self.ctx.enhanced_dir = output_dir
+            self._set_status(f"图像增强完成：{output_dir}")
+            QMessageBox.information(self, "处理成功", f"图像增强结果保存在 {output_dir}", QMessageBox.Ok)
+        else:
+            print(f'Unknown function name: {func_name}')
+
+        print(f'>>> newest images switch to {output_dir}')
 
     def send_to_fusion(self):
         """发送至融合层：将最新预处理结果登记为导航输入，并打开信息融合层页面。"""
