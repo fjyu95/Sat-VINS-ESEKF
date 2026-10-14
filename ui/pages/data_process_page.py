@@ -1,9 +1,9 @@
-"""数据处理层页面（对应 ui/samples/6_数据处理层GUI界面.png）。
+"""数据处理域三个层页面（对应 ui/samples/6_数据处理层GUI界面.png）。
 
-三层按钮与系统真实功能一一对应：
-- 数据预处理层：读入数据(加载配置) -> 数据预处理(去雾+增强) -> 发送至融合层
-- 信息融合层：融合方案配置 -> 信息融合(打开导航窗口) -> 发送至后置处理层
-- 后置处理层：误差统计 / 误差曲线 / 结果比较
+三个独立页面分别对应数据处理域三层，按钮与系统真实功能一一对应：
+- DataPreprocessPage（数据预处理层）：读入数据 -> 数据预处理(去雾+增强) -> 发送至融合层
+- InfoFusionPage（信息融合层）：融合方案配置 -> 信息融合(打开导航窗口) -> 发送至后置处理层
+- PostProcessPage（后置处理层）：误差统计 / 误差曲线 / 结果比较
 """
 from pathlib import Path
 
@@ -23,57 +23,29 @@ from ui.pages.common import (
 )
 
 
-class DataProcessPage(QMainWindow):
-    def __init__(self, ctx, open_navi=None, parent=None):
+class _DataLayerPage(QMainWindow):
+    """数据处理域页面基类：统一按钮样式与状态栏。"""
+
+    def __init__(self, ctx, title, height=300, parent=None):
         super().__init__(parent)
         self.ctx = ctx
-        self.open_navi = open_navi   # 由主界面注入：打开 NaviWindow
-        self.setWindowTitle("数据处理层")
-        self.resize(480, 620)
+        self.setWindowTitle(title)
+        self.resize(480, height)
 
         self._worker = None
         self._viewers = []
 
         central = QWidget()
         self.setCentralWidget(central)
-        root = QVBoxLayout(central)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(10)
+        self._root = QVBoxLayout(central)
+        self._root.setContentsMargins(12, 12, 12, 12)
+        self._root.setSpacing(10)
 
-        # ---------------- 数据预处理层 ----------------
-        pre_group = QGroupBox("数据预处理层")
-        pre_layout = QVBoxLayout(pre_group)
-        self.btn_load_data = self._make_button("读入数据", self.load_data)
-        self.btn_preprocess = self._make_button("数据预处理", self.preprocess)
-        self.btn_send_fusion = self._make_button("发送至融合层", self.send_to_fusion)
-        for b in (self.btn_load_data, self.btn_preprocess, self.btn_send_fusion):
-            pre_layout.addWidget(b)
-        root.addWidget(pre_group)
-
-        # ---------------- 信息融合层 ----------------
-        fusion_group = QGroupBox("信息融合层")
-        fusion_layout = QVBoxLayout(fusion_group)
-        self.btn_fusion_cfg = self._make_button("融合方案配置", self.fusion_config)
-        self.btn_fusion = self._make_button("信息融合", self.start_fusion)
-        self.btn_send_post = self._make_button("发送至后置处理层", self.send_to_post)
-        for b in (self.btn_fusion_cfg, self.btn_fusion, self.btn_send_post):
-            fusion_layout.addWidget(b)
-        root.addWidget(fusion_group)
-
-        # ---------------- 后置处理层 ----------------
-        post_group = QGroupBox("后置处理层")
-        post_layout = QVBoxLayout(post_group)
-        self.btn_err_calc = self._make_button("仿真计算误差", self.calc_error)
-        self.btn_err_plot = self._make_button("绘制误差曲线", self.plot_error)
-        self.btn_compare = self._make_button("结果比较及故障分析", self.compare_results)
-        for b in (self.btn_err_calc, self.btn_err_plot, self.btn_compare):
-            post_layout.addWidget(b)
-        root.addWidget(post_group)
-
-        # 状态提示
+    def _finish_layout(self):
+        """在子类添加完功能按钮后调用：追加状态栏与弹性空间。"""
         self.status_label = QLabel("状态：待机")
-        root.addWidget(self.status_label)
-        root.addStretch(1)
+        self._root.addWidget(self.status_label)
+        self._root.addStretch(1)
 
     @staticmethod
     def _make_button(text, slot):
@@ -85,6 +57,23 @@ class DataProcessPage(QMainWindow):
     def _set_status(self, text):
         self.status_label.setText(f"状态：{text}")
         print(f">>> {text}")
+
+
+class DataPreprocessPage(_DataLayerPage):
+    """数据预处理层页面：读入数据 -> 数据预处理 -> 发送至融合层。"""
+
+    def __init__(self, ctx, open_fusion=None, parent=None):
+        super().__init__(ctx, "数据预处理层", 300, parent)
+        self.open_fusion = open_fusion   # 由主界面注入：打开信息融合层页面
+
+        pre_group = QGroupBox("数据预处理层")
+        pre_layout = QVBoxLayout(pre_group)
+        for text, slot in (("读入数据", self.load_data),
+                           ("数据预处理", self.preprocess),
+                           ("发送至融合层", self.send_to_fusion)):
+            pre_layout.addWidget(self._make_button(text, slot))
+        self._root.addWidget(pre_group)
+        self._finish_layout()
 
     # ==================================================================
     # 数据预处理层
@@ -168,7 +157,7 @@ class DataProcessPage(QMainWindow):
         QMessageBox.information(self, "处理成功", f"图像预处理完成，结果保存在：\n{output_dir}", QMessageBox.Ok)
 
     def send_to_fusion(self):
-        """发送至融合层：将最新预处理结果登记为导航输入。"""
+        """发送至融合层：将最新预处理结果登记为导航输入，并打开信息融合层页面。"""
         files = self.ctx.set_final_images()
         if files:
             self._set_status(f"已发送至融合层（{len(files)} 帧预处理图像）")
@@ -178,6 +167,26 @@ class DataProcessPage(QMainWindow):
             self._set_status("已发送至融合层（使用原始航拍图像）")
             QMessageBox.information(self, "发送至融合层",
                                     "未检测到预处理结果，将使用原始航拍图像进行融合。", QMessageBox.Ok)
+        if self.open_fusion is not None:
+            self.open_fusion()
+
+
+class InfoFusionPage(_DataLayerPage):
+    """信息融合层页面：融合方案配置 -> 信息融合 -> 发送至后置处理层。"""
+
+    def __init__(self, ctx, open_navi=None, open_post=None, parent=None):
+        super().__init__(ctx, "信息融合层", 300, parent)
+        self.open_navi = open_navi   # 由主界面注入：打开 NaviWindow
+        self.open_post = open_post   # 由主界面注入：打开后置处理层页面
+
+        fusion_group = QGroupBox("信息融合层")
+        fusion_layout = QVBoxLayout(fusion_group)
+        for text, slot in (("融合方案配置", self.fusion_config),
+                           ("信息融合", self.start_fusion),
+                           ("发送至后置处理层", self.send_to_post)):
+            fusion_layout.addWidget(self._make_button(text, slot))
+        self._root.addWidget(fusion_group)
+        self._finish_layout()
 
     # ==================================================================
     # 信息融合层
@@ -221,10 +230,28 @@ class DataProcessPage(QMainWindow):
             self._set_status("融合结果已发送至后置处理层")
             QMessageBox.information(self, "发送至后置处理层",
                                     f"融合轨迹已就绪：\n{est.resolve()}\n{gt.resolve()}", QMessageBox.Ok)
+            if self.open_post is not None:
+                self.open_post()
         else:
             QMessageBox.warning(self, "发送至后置处理层",
                                 "尚未检测到融合结果文件（results/traj_esekf.csv），\n请先运行「信息融合」。",
                                 QMessageBox.Ok)
+
+
+class PostProcessPage(_DataLayerPage):
+    """后置处理层页面：误差统计 / 误差曲线 / 结果比较及故障分析。"""
+
+    def __init__(self, ctx, parent=None):
+        super().__init__(ctx, "后置处理层", 300, parent)
+
+        post_group = QGroupBox("后置处理层")
+        post_layout = QVBoxLayout(post_group)
+        for text, slot in (("仿真计算误差", self.calc_error),
+                           ("绘制误差曲线", self.plot_error),
+                           ("结果比较及故障分析", self.compare_results)):
+            post_layout.addWidget(self._make_button(text, slot))
+        self._root.addWidget(post_group)
+        self._finish_layout()
 
     # ==================================================================
     # 后置处理层

@@ -27,7 +27,7 @@ from ui.pages.trajectory_page import TrajectoryPage
 from ui.pages.datalink_page import DatalinkPage
 from ui.pages.image_gen_page import ImageGenPage
 from ui.pages.ins_gnss_page import InsGnssPage
-from ui.pages.data_process_page import DataProcessPage
+from ui.pages.data_process_page import DataPreprocessPage, InfoFusionPage, PostProcessPage
 from ui.pages.navi_window import NaviWindow
 
 BUTTON_WIDTH = 260
@@ -61,9 +61,9 @@ class MainWindow(QMainWindow):
             ("惯导/卫星导航仿真模块", self.open_ins_gnss_page),
         ]))
         root.addWidget(self._domain_group("数据处理域", [
-            ("数据预处理层", self.open_data_process_page),
-            ("信息融合层", self.open_data_process_page),
-            ("后置处理层", self.open_data_process_page),
+            ("数据预处理层", self.open_data_preprocess_page),
+            ("信息融合层", self.open_info_fusion_page),
+            ("后置处理层", self.open_post_process_page),
         ]))
 
         self._build_menus()
@@ -136,8 +136,21 @@ class MainWindow(QMainWindow):
     def open_ins_gnss_page(self):
         return self._show_window('ins_gnss', lambda: InsGnssPage(self.ctx, self))
 
-    def open_data_process_page(self):
-        return self._show_window('data_process', lambda: DataProcessPage(self.ctx, self.open_navi_window, self))
+    def open_data_preprocess_page(self):
+        return self._show_window(
+            'data_preprocess',
+            lambda: DataPreprocessPage(self.ctx, open_fusion=self.open_info_fusion_page, parent=self))
+
+    def open_info_fusion_page(self):
+        return self._show_window(
+            'info_fusion',
+            lambda: InfoFusionPage(self.ctx, open_navi=self.open_navi_window,
+                                   open_post=self.open_post_process_page, parent=self))
+
+    def open_post_process_page(self):
+        return self._show_window(
+            'post_process',
+            lambda: PostProcessPage(self.ctx, self))
 
     def open_navi_window(self):
         return self._show_window('navi', lambda: NaviWindow(self.ctx, self))
