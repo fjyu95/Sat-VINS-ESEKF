@@ -39,8 +39,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("无人相对导航全数字仿真系统")
-        self.resize(720, 640)
+        self.setWindowTitle("无人相对导航全数字仿真验证环境")
+        self.resize(720, 480)
 
         self.ctx = AppContext()          # 跨页面共享状态
         self._windows = {}               # 子窗口引用
@@ -167,7 +167,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "关于",
-            "<b>软件名称：</b> 无人相对导航全数字仿真系统<br>"
+            "<b>软件名称：</b> 无人相对导航全数字仿真验证环境<br>"
             "<b>版本号：</b> v1.2<br>"
             "<b>完成单位：</b> 西北工业大学<br>"
         )

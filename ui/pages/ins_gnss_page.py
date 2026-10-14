@@ -1,10 +1,13 @@
 """惯性/卫星导航仿真单元页面（对应 ui/samples/5_惯性卫星导航仿真单元GUI界面.png）。"""
+import random
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
-    QDoubleSpinBox, QPushButton, QMessageBox, QFileDialog, QLineEdit,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+    QFormLayout, QDoubleSpinBox, QPushButton, QMessageBox, QFileDialog,
+    QLineEdit, QProgressDialog,
 )
+from PyQt5.QtCore import Qt, QTimer
 
 from ui.pages.common import StorageSettingGroup, make_mode_group
 
@@ -65,6 +68,8 @@ class InsGnssPage(QMainWindow):
         root.addWidget(self.btn_solve, 0)
         root.addStretch(1)
 
+        self._progress = None
+
     def pick_param_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "打开参数文件", "configs", "All Files (*);;Config Files (*.yaml);;Text Files (*.txt)")
@@ -74,6 +79,28 @@ class InsGnssPage(QMainWindow):
             self.file_edit.setToolTip(path)
 
     def solve(self):
+        """启动解算：随机短时延迟（0.8~2s）模拟真实解算过程。"""
+        self.btn_solve.setEnabled(False)
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        self._progress = QProgressDialog("正在解算，请稍候……", None, 0, 0, self)
+        self._progress.setWindowTitle("解算")
+        self._progress.setWindowModality(Qt.WindowModal)
+        self._progress.setCancelButton(None)
+        self._progress.setMinimumDuration(0)
+        self._progress.setMinimumWidth(280)
+        self._progress.show()
+
+        delay_ms = random.randint(800, 2000)
+        QTimer.singleShot(delay_ms, self._finish_solve)
+
+    def _finish_solve(self):
+        if self._progress is not None:
+            self._progress.close()
+            self._progress = None
+        QApplication.restoreOverrideCursor()
+        self.btn_solve.setEnabled(True)
+
         mode = self.mode_radios[0].text() if self.mode_radios[0].isChecked() else self.mode_radios[1].text()
         storage = self.storage_group.storage_dir() or "默认路径"
         summary = (f"模式：{mode}\n"

@@ -37,7 +37,7 @@ class NaviWindow(QMainWindow):
         super().__init__(parent)
         self.ctx = ctx
         uic.loadUi('ui/main_window.ui', self)
-        self.setWindowTitle("图像/视觉导航仿真单元")
+        self.setWindowTitle("无人相对导航全数字仿真验证环境")
 
         self.resize(1800, 1000)
         self.background = None
