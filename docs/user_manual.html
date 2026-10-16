@@ -323,6 +323,7 @@ pip install -r requirements.txt</code></pre>
     <tr><td><code>clahe_clip_limit</code></td><td><code>2.0</code></td><td>CLAHE 对比度限制</td></tr>
     <tr><td><code>scale_factor_crop_pyramid</code></td><td><code>1.5</code></td><td>底图裁剪扩展倍数（&gt;1 扩大视野余量）</td></tr>
     <tr><td><code>register_ransacReprojThreshold</code></td><td><code>7.0</code></td><td>LoFTR 配准 RANSAC 重投影阈值（过大易误匹配）</td></tr>
+    <tr><td><code>register_loftr_max_side</code></td><td><code>1800</code></td><td>LoFTR 输入最大边长（像素）；超过时自动降采样防 CUDA OOM，OOM 时再减半重试</td></tr>
     <tr><td><code>register_min_inliers</code></td><td><code>20</code></td><td>配准有效所需最少内点数</td></tr>
     <tr><td><code>register_min_ratio</code></td><td><code>0.05</code></td><td>配准有效所需最小内点比例</td></tr>
   </table>
@@ -629,6 +630,7 @@ python navi_stats_plot.py   <span class="cm"># 柱状+折线误差图，标注 M
     <tr><td>首帧旋转角估计失败或错误</td><td>检查 DINOv3 权重是否在 <code>visual_localization/ckpt/</code>；或直接在配置中将 <code>rotation_angle</code> 设为 0/90/180/270</td></tr>
     <tr><td>大量帧配准失败</td><td>检查金字塔层级分辨率覆盖、视场中心姿态角与 <code>camera_axis_*_bias</code>；适当增大 <code>scale_factor_crop_pyramid</code></td></tr>
     <tr><td>VIO 占比低（多数帧仅 IMU）</td><td>放宽 <code>register_min_inliers/min_ratio</code>，或调大 <code>ekf_fusion_threshold</code>；同时核对内参 <code>camera_intrinsics</code></td></tr>
+    <tr><td>LoFTR 配准 CUDA OOM</td><td>图像超过 <code>register_loftr_max_side</code> 时自动降采样，OOM 时逐级减半重试；仍失败则抛出异常——关闭其他 GPU 进程、调小 <code>crop_scale</code> 或 <code>register_loftr_max_side</code> 后重试</td></tr>
     <tr><td>去雾无效果/报错</td><td>去雾仅支持彩色图像且需要 GPU 与 <code>snapshots/dehazer.pth</code> 权重；灰度图会提示不支持</td></tr>
     <tr><td>相对导航 client 连不上</td><td>确认主机防火墙放行 50007 端口、两机互 ping、<code>SERVER_IP</code> 已改为实际局域网 IP</td></tr>
     <tr><td>界面乱码或样式异常</td><td>菜单「设置 → 界面风格」切换 Fusion/Windows；字体大小可在「字体大小」菜单调整</td></tr>

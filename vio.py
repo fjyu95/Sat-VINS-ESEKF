@@ -51,6 +51,7 @@ class EKFWorker(QObject):
 
         self.kwargs_register = {'crop_scale': self.config['scale_factor_crop_pyramid'],
                                 'reproj_thresh': self.config['register_ransacReprojThreshold'],
+                                'register_loftr_max_side': self.config.get('register_loftr_max_side', 1600),
                                 'min_inliers': self.config['register_min_inliers'],
                                 'min_ratio': self.config['register_min_ratio'],
                                 'north_bias': self.config['camera_axis_north_bias'],

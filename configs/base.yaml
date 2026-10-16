@@ -20,6 +20,7 @@ camera_axis_east_bias: 0
 
 scale_factor_crop_pyramid: 1.5 # >1 to crop more
 register_ransacReprojThreshold: 7.0 # loftr image registration ransac reprojection threshold
+register_loftr_max_side: 1800 # loftr max input side in pixels; larger inputs are downscaled to avoid CUDA OOM
 register_min_inliers: 20 # loftr image registration minimum inliers after ransac
 register_min_ratio: 0.05 # loftr image registration minimum ratio after ransac
 

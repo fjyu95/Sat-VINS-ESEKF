@@ -173,7 +173,8 @@ def validate_quad_geometry(n_inlier, inlier_ratio, prj_error, corners, max_area=
 
 def loftr_match(src_img, dst_img, filename='', **kwargs):
     loftr = LoFTR('outdoor')
-    matcher = loftr.eval().cuda() if torch.cuda.is_available() else loftr.eval()
+    use_cuda = torch.cuda.is_available()
+    matcher = loftr.eval().cuda() if use_cuda else loftr.eval()
 
     # 读取两张图 → gray tensor [0,1] 1×1×H×W, float32
     def load_torch(img):
@@ -183,15 +184,46 @@ def loftr_match(src_img, dst_img, filename='', **kwargs):
 
         return img  # 1×1×H×W
 
-    src_t = load_torch(src_img)
-    dst_t = load_torch(dst_img)
+    # 图像过大（>~2k×2k）时 LoFTR 推理易 CUDA OOM：
+    # 先按 max_side 等比降采样；若仍 OOM 逐级减半重试。
+    # 匹配点坐标除以 scale 映射回原图，下游单应估计不受影响
+    max_side = kwargs.get('register_loftr_max_side', 1600)
+    max_hw = max(src_img.shape[0], src_img.shape[1],
+                 dst_img.shape[0], dst_img.shape[1])
+    scale = min(1.0, max_side / max_hw)
 
-    with torch.no_grad():
-        input_dict = {'image0': src_t.cuda(), 'image1': dst_t.cuda()}
-        match_res = matcher(input_dict)
+    match_res = None
+    for _ in range(4):
+        s_in = src_img if scale >= 1.0 else cv2.resize(src_img, None, fx=scale, fy=scale)
+        d_in = dst_img if scale >= 1.0 else cv2.resize(dst_img, None, fx=scale, fy=scale)
+        src_t = load_torch(s_in)
+        dst_t = load_torch(d_in)
+        try:
+            with torch.no_grad():
+                input_dict = {'image0': src_t, 'image1': dst_t}
+                if use_cuda:
+                    input_dict = {k: v.cuda() for k, v in input_dict.items()}
+                match_res = matcher(input_dict)
+            if scale < 1.0:
+                print(f'LoFTR 降采样推理 scale={scale:.2f} ({filename})')
+            break
+        except RuntimeError as e:
+            if 'out of memory' not in str(e).lower():
+                raise
+            gc.collect()
+            if use_cuda:
+                torch.cuda.empty_cache()
+            scale *= 0.5
+            print(f'[LoFTR] {filename} 显存不足(OOM)，降采样至 scale={scale:.2f} 重试')
 
-    mkpts1 = match_res['keypoints0'].cpu().numpy()
-    mkpts2 = match_res['keypoints1'].cpu().numpy()
+    if match_res is None:
+        raise RuntimeError(
+            f'[LoFTR] CUDA OOM：图像过大且多次降采样(scale≤{scale:.2f})仍显存不足: {filename}。\n'
+            f'建议：(1) 关闭其他占用 GPU 显存的进程；(2) 调小配置 crop_scale 缩小底图裁剪范围；'
+            f'(3) 调小 register_loftr_max_side 强制更小输入；(4) 无可用显存时改 CPU 推理（较慢）后重试。')
+
+    mkpts1 = match_res['keypoints0'].cpu().numpy() / scale
+    mkpts2 = match_res['keypoints1'].cpu().numpy() / scale
     conf = match_res['confidence'].cpu().numpy()
     n_pts = len(mkpts1)
     if n_pts < 4:
