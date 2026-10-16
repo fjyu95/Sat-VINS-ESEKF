@@ -51,6 +51,7 @@ PyQt5 界面按三个域组织，各按钮打开独立子窗口（`ui/pages/`）
 ```
 GeoVIO-v1.2/
 ├── main_window.py          # 仿真主界面入口
+├── start.sh                # Linux 一键启动脚本（直接用 conda 环境 Python 启动主界面）
 ├── vio.py                  # 视觉惯性导航流水线（EKFWorker 线程）
 ├── configs/                # 配置：default.yaml / base.yaml / imu_parameters.yaml
 ├── ESEKF_IMU/              # 误差状态扩展卡尔曼滤波器（IMU 预测 + 量测更新）
@@ -71,7 +72,6 @@ conda create -n geovio python=3.10
 conda activate geovio
 pip install torch==2.7.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
-pip install ruamel.yaml
 ```
 
 建议使用支持 CUDA 12.8 的 NVIDIA 显卡与驱动；无 GPU 时部分深度学习模块（DINOv3/LoFTR/去雾）将退化为 CPU 或不可用。
@@ -108,6 +108,12 @@ pip install ruamel.yaml
 
 ```bash
 python main_window.py
+```
+
+Linux 环境可使用一键启动脚本 `start.sh`（脚本内部直接调用 `~/miniconda3/envs/geovio/bin/python` 启动主界面，无需手动激活 conda 环境；如 conda 安装路径不同，请修改脚本中的 Python 路径）：
+
+```bash
+bash start.sh
 ```
 
 依次打开：数据预处理层（增强/去雾）→ 信息融合层（视觉/惯性融合导航，`NaviWindow`）→ 后置处理层（轨迹与误差统计）。融合导航运行时可暂停/继续，底图上实时显示飞机位置与配准画面。
