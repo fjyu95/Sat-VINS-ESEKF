@@ -1,4 +1,6 @@
 #python==3.10.18
 numpy==2.2.6
+# 注意：必须安装 GUI 版 opencv-python，不要安装 opencv-python-headless
+# （headless 版无 imshow，会导致可视化窗口报错）
 opencv-python
 pymap3d

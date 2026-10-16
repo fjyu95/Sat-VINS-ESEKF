@@ -558,8 +558,13 @@ python relative_navi/client.py</code></pre>
   <ul>
     <li><b>server.py</b>：逐点读取 ENU 轨迹 → 经 <code>enu_datum</code> 基准点转 ECEF → JSON 行式 TCP 发送（<code>{"timestamp":…, "position":[x,y,z]}</code>）；</li>
     <li><b>client.py</b>：接收主机位置后，以随机距离（600–800 m）、方位角（110–120°）、仰角（±10°）在 ENU 系构造僚机偏移并转回 ECEF，即相对导航解算；</li>
-    <li><b>可视化</b>：OpenCV 窗口显示主机（红点）与僚机（蓝点）相对初始位置的经纬度偏移，按 <kbd>q</kbd> 退出。</li>
+    <li><b>可视化</b>：从机窗口（1080×720）左侧为雷达态势图——长机居中机标、三道自适应量程距离环、15° 方位刻度、旋转扫描线、僚机渐隐相对轨迹与长-僚距离连线；右侧遥测面板显示链路状态、双机经纬度/海拔及相对 RANGE / AZIMUTH / ELEV / ΔE ΔN ΔU。按 <kbd>q</kbd> 或 <kbd>Ctrl+C</kbd> 退出。</li>
   </ul>
+
+  <figure>
+    <img src="../ui/samples/7_相对导航仿真GUI界面.png" alt="相对导航仿真界面">
+    <figcaption>图 9-1　相对导航仿真可视化：雷达态势图 + 遥测面板</figcaption>
+  </figure>
 </section>
 
 <!-- ============================================================ -->
