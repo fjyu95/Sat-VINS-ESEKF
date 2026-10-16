@@ -10,14 +10,13 @@ import numpy as np
 import pymap3d as pm
 
 # !!! 修改成 Ubuntu 服务器的局域网 IP !!!
-# SERVER_IP = "127.0.0.1" # 单机测试
-SERVER_IP = "192.168.31.75"
+SERVER_IP = "127.0.0.1" # 单机测试
+# SERVER_IP = "192.168.31.75"
 SERVER_PORT = 50007
 
-# 僚机编号：python client.py <id>。多从机部署时每台从机使用不同 id，
-# 以 id 作随机种子生成各自独立的相对位置（同 id 可复现同序列）
-CLIENT_ID = int(sys.argv[1]) if len(sys.argv) > 1 else 0
-random.seed(CLIENT_ID)
+# 僚机编号：python client.py <id>。未传参时(None)由 server 按接入顺序分配，
+# 以最终编号作随机种子生成各自独立的相对位置（同 id 可复现同序列）
+CLIENT_ID = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
 # ------------------------------------------------------------------
 # 可视化配色（BGR）
@@ -289,25 +288,25 @@ def main():
         return
     print(f"[CLIENT] Connected to {SERVER_IP}:{SERVER_PORT}")
 
-    hud = HudRenderer(CLIENT_ID)
+    wing_id = CLIENT_ID   # None 时等首帧由 server 分配
+    hud = HudRenderer(wing_id if wing_id is not None else 0)
     init = False
     gui_ok = True
     lat0 = lon0 = alt0 = 0.0
 
+    client_socket.settimeout(0.5)  # recv 超时循环，使 Ctrl+C 能及时打断阻塞
     buffer = ""
     while True:
         # 接收数据
         try:
             data = client_socket.recv(4096)
+        except socket.timeout:
+            continue
         except OSError:
             break
         if not data:
             break
         data = data.decode("utf-8")
-
-        d = random.uniform(600, 800)
-        alpha = random.uniform(110, 120)
-        beta = random.uniform(-10, 10)
 
         buffer += data
         while "\n" in buffer:
@@ -318,12 +317,20 @@ def main():
                 continue
 
             pos = msg["position"]
-            pos1 = relative_to_ecef(pos, d, alpha, beta)  # 相对导航
 
             if not init:
+                if wing_id is None:            # 未传参，采用 server 分配编号
+                    wing_id = msg.get("wing_id", 0)
+                random.seed(wing_id)
+                hud.wid = wing_id
                 lat0, lon0, alt0 = pm.ecef2geodetic(*pos)
                 print(f"[CLIENT] Initial position: {lat0:.6f}, {lon0:.6f}, {alt0:.2f}")
                 init = True
+
+            d = random.uniform(600, 800)
+            alpha = random.uniform(110, 120)
+            beta = random.uniform(-10, 10)
+            pos1 = relative_to_ecef(pos, d, alpha, beta)  # 相对导航
 
             # 首帧为原点的局部 ENU 坐标
             lead_geo = pm.ecef2geodetic(*pos)
@@ -338,7 +345,7 @@ def main():
                                az=alpha, el=beta, stamp=msg.get("timestamp", 0))
             if gui_ok:
                 try:
-                    cv2.imshow(f"GeoVIO Relative Navigation WING-{CLIENT_ID}", frame)
+                    cv2.imshow(f"GeoVIO Relative Navigation WING-{wing_id}", frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
                 except cv2.error:

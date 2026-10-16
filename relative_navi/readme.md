@@ -11,11 +11,12 @@
       → 每 0.5 s 发送一行 JSON: {"timestamp": t, "position": [x, y, z]}
       → 每个从机连接一个独立线程，同时服务多台从机
 
-从机 ×N (client.py <id>)
-      → 接收主机 ECEF 位置
+从机 ×N (client.py [id])
+      → 接收主机 ECEF 位置与僚机编号 wing_id（server 按接入顺序分配，
+        可用命令行参数 <id> 手动指定覆盖）
       → relative_to_ecef(): 以主机为原点建立 ENU 系，
         按随机距离(600-800 m)/方位角(110-120°)/仰角(±10°) 构造僚机偏移 → ECEF
-        （随机种子 = 僚机编号 <id>，不同从机生成不同相对位置）
+        （随机种子 = wing_id，不同从机生成不同相对位置）
       → OpenCV 可视化 + 日志输出
 ```
 
@@ -25,7 +26,7 @@
 2. **网络**：配置局域网，保证主从机器能互相 ping 通，防火墙放行 `50007` 端口；
 3. **数据**：检查主机 `server.py` 开头两个数据文件路径：`enu_datum.txt`（ENU 基准点 `lat lon h`）与 `traj_esekf_out_f1.txt`（轨迹，每行 `timestamp x y z qx qy qz qw`）；
 4. **地址**：修改 `client.py` 中 `SERVER_IP` 为主机实际局域网 IP；
-5. **启动**：先启动主机 `python server.py`，再逐台启动从机 `python client.py <id>`——每台从机使用不同僚机编号 `<id>`（如 1、2、3…，缺省为 0）；同一台机器也可开多个终端模拟多从机。终端打印坐标日志，OpenCV 窗口显示可视化。
+5. **启动**：先启动主机 `python server.py`，再逐台启动从机 `python client.py [id]`——僚机编号 `<id>` 可选，缺省时由主机按接入顺序自动分配（WING-1、WING-2…）；同一台机器也可开多个终端模拟多从机。终端打印坐标日志，OpenCV 窗口显示可视化，标题为 `WING-<id>`。
 
 ## 可视化界面
 

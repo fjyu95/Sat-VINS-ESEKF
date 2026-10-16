@@ -25,9 +25,10 @@ def enu_to_ecef(xyz, enu):
     return xyz_ecef
 
 
-def client_worker(conn, addr):
+def client_worker(conn, addr, wing_id):
     """单个从机连接的发送线程：0.5 s 周期广播主机轨迹流。
-    多从机同时连接互不干扰，断开时仅清理本连接。"""
+    多从机同时连接互不干扰，断开时仅清理本连接。
+    wing_id 由 server 按接入顺序分配，随每帧数据下发给从机。"""
     i = 0
     try:
         while True:
@@ -36,7 +37,8 @@ def client_worker(conn, addr):
             xyz_ecef = enu_to_ecef(xyz, enu_datum)
             data = {
                 "timestamp": time.time(),
-                "position": xyz_ecef
+                "position": xyz_ecef,
+                "wing_id": wing_id
             }
             conn.sendall((json.dumps(data) + "\n").encode("utf-8"))
             time.sleep(0.5)  # 0.5 秒发送一次
@@ -57,13 +59,17 @@ def main():
     server_socket.listen(8)
     print(f"[SERVER] Listening on {HOST}:{PORT}  (多从机模式, Ctrl+C 退出)")
 
+    server_socket.settimeout(0.5)  # accept 超时循环，使 Ctrl+C 能及时打断阻塞
     n_client = 0
     while True:
-        conn, addr = server_socket.accept()
+        try:
+            conn, addr = server_socket.accept()
+        except socket.timeout:
+            continue
         n_client += 1
         print(f"[SERVER] WING-{n_client} 接入 {addr}")
         threading.Thread(target=client_worker,
-                         args=(conn, addr), daemon=True).start()
+                         args=(conn, addr, n_client), daemon=True).start()
 
 
 if __name__ == "__main__":
