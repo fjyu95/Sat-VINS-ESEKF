@@ -1,10 +1,10 @@
 .idea/
 tmp/
-dataset/
+# dataset/
 preprocessing/enhance/enhanced/
 preprocessing/dehaze/dehazed/
 preprocessing/dehaze/enhanced/
-visual_localization/ckpt/
+# visual_localization/ckpt/
 image_matches_results/
 logs/
 results/
