@@ -1,7 +1,7 @@
 import socket
 import time
 import json
-import random
+import threading
 
 import numpy as np
 import pymap3d as pm
@@ -25,18 +25,11 @@ def enu_to_ecef(xyz, enu):
     return xyz_ecef
 
 
-def main():
-    # 创建 TCP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen(1)
-    print(f"[SERVER] Listening on {HOST}:{PORT}")
-
-    conn, addr = server_socket.accept()
-    print(f"[SERVER] Connected by {addr}")
-
+def client_worker(conn, addr):
+    """单个从机连接的发送线程：0.5 s 周期广播主机轨迹流。
+    多从机同时连接互不干扰，断开时仅清理本连接。"""
+    i = 0
     try:
-        i = 0
         while True:
             # 飞行定位数据 (x, y, z)
             xyz = arr[i % n_samples][1:4]
@@ -45,17 +38,32 @@ def main():
                 "timestamp": time.time(),
                 "position": xyz_ecef
             }
-            json_str = json.dumps(data)
-            print(f"[SERVER] Sending data: {json_str}")
-
-            conn.sendall((json_str + "\n").encode("utf-8"))
+            conn.sendall((json.dumps(data) + "\n").encode("utf-8"))
             time.sleep(0.5)  # 0.5 秒发送一次
             i += 1
 
-    except (ConnectionResetError, BrokenPipeError):
-        print("[SERVER] Client disconnected")
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        pass
     finally:
         conn.close()
+        print(f"[SERVER] 从机断开: {addr}")
+
+
+def main():
+    # 创建 TCP socket，支持多台从机并发连接（1 主机 + N 从机）
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind((HOST, PORT))
+    server_socket.listen(8)
+    print(f"[SERVER] Listening on {HOST}:{PORT}  (多从机模式, Ctrl+C 退出)")
+
+    n_client = 0
+    while True:
+        conn, addr = server_socket.accept()
+        n_client += 1
+        print(f"[SERVER] WING-{n_client} 接入 {addr}")
+        threading.Thread(target=client_worker,
+                         args=(conn, addr), daemon=True).start()
 
 
 if __name__ == "__main__":

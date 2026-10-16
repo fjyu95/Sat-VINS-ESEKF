@@ -1,6 +1,6 @@
 # 相对导航仿真（relative_navi）
 
-主从双机 TCP 通信仿真：主机 `server.py` 循环广播自身 ECEF 轨迹位置，从机 `client.py` 接收后按相对量测（距离 / 方位角 / 仰角）解算僚机绝对位置，并实时渲染雷达态势图与遥测面板。
+一主多从 TCP 通信仿真（≥3 台机器：1 主机 + N 从机）：主机 `server.py` 循环广播自身 ECEF 轨迹位置，每个从机连接由独立线程服务、互不干扰；各从机 `client.py` 接收后按相对量测（距离 / 方位角 / 仰角）解算本机僚机绝对位置，并实时渲染雷达态势图与遥测面板。
 
 ## 工作原理
 
@@ -9,11 +9,13 @@
   enu_datum.txt + traj_esekf_out_f1.txt
       → ENU → ECEF 转换
       → 每 0.5 s 发送一行 JSON: {"timestamp": t, "position": [x, y, z]}
+      → 每个从机连接一个独立线程，同时服务多台从机
 
-从机 (client.py)
+从机 ×N (client.py <id>)
       → 接收主机 ECEF 位置
       → relative_to_ecef(): 以主机为原点建立 ENU 系，
         按随机距离(600-800 m)/方位角(110-120°)/仰角(±10°) 构造僚机偏移 → ECEF
+        （随机种子 = 僚机编号 <id>，不同从机生成不同相对位置）
       → OpenCV 可视化 + 日志输出
 ```
 
@@ -23,11 +25,11 @@
 2. **网络**：配置局域网，保证主从机器能互相 ping 通，防火墙放行 `50007` 端口；
 3. **数据**：检查主机 `server.py` 开头两个数据文件路径：`enu_datum.txt`（ENU 基准点 `lat lon h`）与 `traj_esekf_out_f1.txt`（轨迹，每行 `timestamp x y z qx qy qz qw`）；
 4. **地址**：修改 `client.py` 中 `SERVER_IP` 为主机实际局域网 IP；
-5. **启动**：先启动主机 `python server.py`，再启动从机 `python client.py`；终端打印坐标日志，OpenCV 窗口显示可视化。
+5. **启动**：先启动主机 `python server.py`，再逐台启动从机 `python client.py <id>`——每台从机使用不同僚机编号 `<id>`（如 1、2、3…，缺省为 0）；同一台机器也可开多个终端模拟多从机。终端打印坐标日志，OpenCV 窗口显示可视化。
 
 ## 可视化界面
 
-从机窗口（1080×720，`GeoVIO Relative Navigation`）由两部分组成：
+每个从机窗口（1080×720，标题 `GeoVIO Relative Navigation WING-<id>`）由两部分组成：
 
 ![相对导航仿真界面](../ui/samples/7_相对导航仿真GUI界面.png)
 
@@ -41,7 +43,7 @@
 **右侧 · 遥测面板（LEADER-FOLLOWER TELEMETRY）**
 
 - `LINK OK / FRM n`：链路状态与接收帧计数；
-- `LEADER` / `WINGMAN`：两机经纬度与海拔（WGS-84）；
+- `LEADER` / `WING-<id>`：两机经纬度与海拔（WGS-84）；
 - `RELATIVE`：RANGE（3D 距离）、AZIMUTH、ELEV、ΔE/ΔN/ΔU（ENU 分量，米）；
 - 底部：数据时间戳与 `[Q] EXIT` 提示。
 

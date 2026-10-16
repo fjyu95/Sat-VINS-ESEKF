@@ -1,4 +1,5 @@
 import socket
+import sys
 import json
 import random
 from collections import deque
@@ -13,7 +14,10 @@ import pymap3d as pm
 SERVER_IP = "192.168.31.75"
 SERVER_PORT = 50007
 
-random.seed(0)  # 可去掉种子以获得每次不同的值
+# 僚机编号：python client.py <id>。多从机部署时每台从机使用不同 id，
+# 以 id 作随机种子生成各自独立的相对位置（同 id 可复现同序列）
+CLIENT_ID = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+random.seed(CLIENT_ID)
 
 # ------------------------------------------------------------------
 # 可视化配色（BGR）
@@ -91,7 +95,8 @@ class HudRenderer:
     PANEL_X = 780                 # 右侧遥测面板起始 x
     CX, CY, R = 390, 390, 300     # 雷达圆心与半径（px）
 
-    def __init__(self):
+    def __init__(self, wid=0):
+        self.wid = wid                  # 僚机编号
         self.trail = deque(maxlen=160)   # 僚机相对轨迹（ENU, m）
         self.sweep_deg = 0.0
         self.count = 0
@@ -150,7 +155,7 @@ class HudRenderer:
 
         y += 92
         for name, geo, c in (("LEADER", lead_geo, C_LEAD),
-                             ("WINGMAN", wing_geo, C_WING)):
+                             (f"WING-{self.wid}", wing_geo, C_WING)):
             cv2.line(img, (x0, y - 8), (x0 + w, y - 8), C_GRID, 1, cv2.LINE_AA)
             put_text(img, x0, y + 12, name, 0.5, c)
             y += 40
@@ -211,7 +216,8 @@ class HudRenderer:
         draw_craft(img, center, C_LEAD, 0.0)
         draw_craft(img, wing_pt, C_WING, az)
         put_text(img, center[0] + 14, center[1] - 12, "LEAD", 0.42, C_LEAD)
-        put_text(img, wing_pt[0] + 14, wing_pt[1] - 12, "WING", 0.42, C_WING)
+        put_text(img, wing_pt[0] + 14, wing_pt[1] - 12,
+                 f"WING-{self.wid}", 0.42, C_WING)
 
         self._hud(img, lead_geo, wing_geo, rel, rng3d, az, el, stamp)
         return img
@@ -283,7 +289,7 @@ def main():
         return
     print(f"[CLIENT] Connected to {SERVER_IP}:{SERVER_PORT}")
 
-    hud = HudRenderer()
+    hud = HudRenderer(CLIENT_ID)
     init = False
     gui_ok = True
     lat0 = lon0 = alt0 = 0.0
@@ -332,7 +338,7 @@ def main():
                                az=alpha, el=beta, stamp=msg.get("timestamp", 0))
             if gui_ok:
                 try:
-                    cv2.imshow("GeoVIO Relative Navigation", frame)
+                    cv2.imshow(f"GeoVIO Relative Navigation WING-{CLIENT_ID}", frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
                 except cv2.error:

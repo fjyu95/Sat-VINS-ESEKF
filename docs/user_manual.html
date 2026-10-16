@@ -541,19 +541,21 @@ python main_window.py</code></pre>
 
   <h3>9.1 部署步骤</h3>
   <ol>
-    <li>主从两台机器分别配置相同 conda 环境并 <code>pip install -r relative_navi/requirements.txt</code>；</li>
+    <li>支持 ≥3 台机器（1 主机 + N 从机）：所有机器分别配置相同 conda 环境并 <code>pip install -r relative_navi/requirements.txt</code>；</li>
     <li>配置局域网保证互相 ping 通；</li>
     <li>检查 <code>server.py</code> 开头的数据文件路径：<code>enu_datum.txt</code>（ENU 基准点 lat lon h）与 <code>traj_esekf_out_f1.txt</code>（轨迹：timestamp x y z qx qy qz qw）；</li>
     <li>修改 <code>client.py</code> 中 <code>SERVER_IP</code> 为主机实际局域网 IP；</li>
-    <li>先启动主机 <code>server.py</code>，再启动从机 <code>client.py</code>。</li>
+    <li>先启动主机 <code>server.py</code>，再逐台启动从机 <code>client.py &lt;id&gt;</code>——每台从机用不同僚机编号 <code>&lt;id&gt;</code>（缺省 0）；server 为每个连接启动独立线程，多从机互不干扰。同一机器也可开多个终端模拟多从机。</li>
   </ol>
 
   <h3>9.2 启动命令</h3>
-  <pre><code><span class="cm"># 主机（端口 50007，0.5 s 周期广播 ECEF 位置）</span>
+  <pre><code><span class="cm"># 主机（端口 50007，0.5 s 周期广播 ECEF 位置，支持多从机并发连接）</span>
 python relative_navi/server.py
 
-<span class="cm"># 从机</span>
-python relative_navi/client.py</code></pre>
+<span class="cm"># 从机 ×N，每台一个僚机编号 &lt;id&gt;</span>
+python relative_navi/client.py 1
+python relative_navi/client.py 2
+python relative_navi/client.py 3</code></pre>
 
   <h3>9.3 工作原理</h3>
   <ul>
