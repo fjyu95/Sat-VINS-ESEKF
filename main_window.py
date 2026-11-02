@@ -197,8 +197,9 @@ def main():
 
 
 if __name__ == '__main__':
-    # 替换标准输出和错误输出
-    sys.stdout = Logger(log_dir='logs', also_print=True)
-    sys.stderr = sys.stdout
+    # 替换标准输出和错误输出（默认不写日志，加 --log 参数时输出到 logs/）
+    if '--log' in sys.argv:
+        sys.stdout = Logger(log_dir='logs', also_print=True)
+        sys.stderr = sys.stdout
 
     main()
