@@ -27,8 +27,10 @@ GeoVIO 是一套面向无人机相对导航的全数字仿真验证环境。核�
 
 ### 3. 图像预处理（`preprocessing/`）
 
-- `enhance/enhance.py`：CLAHE 自适应直方图均衡 / gamma 增强，提升弱光影像对比度。
+- `enhance/enhance.py`：CLAHE 自适应直方图均衡，提升弱光影像对比度。
 - `dehaze/dehaze.py`：轻量 CNN 去雾网络（需权重 `preprocessing/dehaze/snapshots/dehazer.pth`）。
+- `metrics.py`：无参考质量指标（信息熵、平均梯度、对比度、PSNR、SSIM），供算法测试使用。
+- 算法测试入口：数据预处理层「预处理算法测试」，固定使用 AOD-Net 去雾 / CLAHE 增强，测试数据默认 `preprocessing/*/test_data`（支持自选目录/文件），结果、对比图与 `metrics.csv` 输出至 `preprocessing_test/`。
 
 ### 4. 结果统计分析（`stats_analysis/`）
 

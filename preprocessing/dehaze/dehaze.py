@@ -29,18 +29,20 @@ def demo(image_path):
 
 
 def dehaze_image(image_path):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # --- 1. 读图并转为 [0,1] numpy --- #
     data_hazy_pil = Image.open(image_path).convert("RGB")
     data_hazy_np = np.asarray(data_hazy_pil) / 255.0  # (H,W,3) RGB
 
-    # --- 2. numpy → torch tensor → GPU --- #
+    # --- 2. numpy → torch tensor → GPU/CPU --- #
     data_hazy = torch.from_numpy(data_hazy_np).float()  # (H,W,3)
-    data_hazy = data_hazy.permute(2, 0, 1).unsqueeze(0).cuda()  # (1,3,H,W)
+    data_hazy = data_hazy.permute(2, 0, 1).unsqueeze(0).to(device)  # (1,3,H,W)
 
     # --- 3. load model --- #
-    dehaze_net = net.dehaze_net().cuda()
+    dehaze_net = net.dehaze_net().to(device)
     ckpt_path = Path(__file__).parent.resolve() / 'snapshots/dehazer.pth'
-    dehaze_net.load_state_dict(torch.load(ckpt_path))
+    dehaze_net.load_state_dict(torch.load(ckpt_path, map_location=device))
     dehaze_net.eval()
 
     # --- 4. forward --- #

@@ -17,6 +17,7 @@ from utils.parser import load_config
 from preprocessing.dehaze.dehaze import dehaze_image
 from preprocessing.enhance.enhance import clahe_enhance
 from ui.pages.context import IMAGE_EXTS
+from ui.pages.preprocess_test import AlgoTestDialog
 from ui.pages.workers import run_preprocess
 from ui.pages.common import (
     show_match_results, show_registration_stats, show_est_vs_gt_traj, compute_ekf_error_stats,
@@ -63,7 +64,7 @@ class DataPreprocessPage(_DataLayerPage):
     """数据预处理层页面：读入数据 -> 数据预处理 -> 发送至融合层。"""
 
     def __init__(self, ctx, open_fusion=None, parent=None):
-        super().__init__(ctx, "数据预处理层", 300, parent)
+        super().__init__(ctx, "数据预处理层", 340, parent)
         self.open_fusion = open_fusion   # 由主界面注入：打开信息融合层页面
 
         pre_group = QGroupBox("数据预处理层")
@@ -78,6 +79,10 @@ class DataPreprocessPage(_DataLayerPage):
         menu.addAction("图像增强", self.btn_enhance)
         btn_preprocess.setMenu(menu)
         pre_layout.addWidget(btn_preprocess)
+
+        # 「预处理算法测试」独立于主流程：可选去雾/增强算法与测试数据，
+        # 结果写入 preprocessing_test/ 并弹出带指标的对比查看器
+        pre_layout.addWidget(self._make_button("预处理算法测试", self.open_algo_test))
 
         pre_layout.addWidget(self._make_button("发送至融合层", self.send_to_fusion))
         self._root.addWidget(pre_group)
@@ -167,6 +172,12 @@ class DataPreprocessPage(_DataLayerPage):
             print(f'Unknown function name: {func_name}')
 
         print(f'>>> newest images switch to {output_dir}')
+
+    def open_algo_test(self):
+        """预处理算法测试：独立评估去雾/增强算法，输出与流程数据隔离。"""
+        dlg = AlgoTestDialog(self.ctx, self)
+        self._viewers.append(dlg)
+        dlg.show()
 
     def send_to_fusion(self):
         """发送至融合层：将最新预处理结果登记为导航输入，并打开信息融合层页面。"""
