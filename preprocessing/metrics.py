@@ -37,7 +37,9 @@ def average_gradient(gray):
 
 
 def psnr(before, after):
-    """峰值信噪比，衡量结果相对原图的偏差幅度（越大变化越小）。"""
+    """峰值信噪比，以原图为伪参考衡量变化幅度（越大变化越小）。
+
+    注意：无真值（GT）时该指标只反映"改了多少"，不代表"改得好不好"。"""
     mse = np.mean((before.astype(np.float64) - after.astype(np.float64)) ** 2)
     if mse <= 1e-10:
         return float('inf')
@@ -45,7 +47,9 @@ def psnr(before, after):
 
 
 def ssim(before, after):
-    """结构相似度，衡量结果相对原图的结构保持程度（1 为完全一致）。"""
+    """结构相似度，以原图为伪参考衡量结构保持程度（1 为完全一致）。
+
+    注意：无真值（GT）时该指标只反映与原图的相似度，不代表绝对质量。"""
     try:
         from skimage.metrics import structural_similarity
         return float(structural_similarity(before, after, data_range=255))
@@ -85,11 +89,12 @@ def format_metrics(m):
         f"信息熵:     {_delta(m['entropy_after'], m['entropy_before'])} bit",
         f"平均梯度:   {_delta(m['avg_grad_after'], m['avg_grad_before'])}",
         f"对比度σ:    {_delta(m['contrast_after'], m['contrast_before'])}",
-        f"PSNR:       {m['psnr']:.2f} dB",
-        f"SSIM:       {m['ssim']:.4f}",
+        f"PSNR:       {m['psnr']:.2f} dB  (对原图)",
+        f"SSIM:       {m['ssim']:.4f}    (对原图)",
     ]
     if 'time' in m:
         lines.append(f"耗时:       {m['time']:.2f} s")
+    lines.append("注: PSNR/SSIM 以原图为参考，表示变化幅度而非真值质量")
     return '\n'.join(lines)
 
 

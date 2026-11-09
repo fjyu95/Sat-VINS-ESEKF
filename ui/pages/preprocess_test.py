@@ -278,7 +278,9 @@ class AlgoTestDialog(QDialog):
 
         hint = QLabel('默认使用 preprocessing 下的测试数据（去雾 AOD-Net，'
                       '仅支持彩色图像；增强 CLAHE）。'
-                      '结果输出至 preprocessing_test/ ，不影响主流程。')
+                      '结果输出至 preprocessing_test/ ，不影响主流程。\n'
+                      '指标说明：熵/平均梯度/对比度为无参考指标（越高细节越多）；'
+                      'PSNR/SSIM 以原图为伪参考，表示变化幅度，非真值质量。')
         hint.setWordWrap(True)
         form.addRow('', hint)
 

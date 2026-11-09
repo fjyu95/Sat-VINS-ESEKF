@@ -10,9 +10,10 @@ import cv2
 import numpy as np
 
 from PyQt5.QtWidgets import QMainWindow, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, \
-    QFileDialog, QMessageBox, QGraphicsTextItem, QLabel
-from PyQt5.QtCore import Qt, QTimer, QThread
-from PyQt5.QtGui import QPixmap, QPen, QColor, QPainter, QBrush, QFont
+    QFileDialog, QMessageBox, QGraphicsTextItem, QLabel, QMenu, QDialog, QVBoxLayout, \
+    QHBoxLayout, QPushButton, QListWidget, QListWidgetItem
+from PyQt5.QtCore import Qt, QTimer, QThread, QPointF
+from PyQt5.QtGui import QPixmap, QPen, QColor, QPainter, QBrush, QFont, QPainterPath
 from PyQt5 import uic
 
 from utils.config import restore_config
@@ -42,6 +43,7 @@ class NaviWindow(QMainWindow):
         self.resize(1800, 1000)
         self.background = None
         self._stat_viewers = []   # 统计子窗口引用，防止被 GC
+        self._traj_items = []     # 底图上叠加的仿真轨迹图元
 
         # 替换 Designer 的 mapView 为可缩放版本
         old_view = self.findChild(QGraphicsView, "mapView")
@@ -114,6 +116,12 @@ class NaviWindow(QMainWindow):
         self.action_enhance.triggered.connect(self.btn_enhance)
 
         self.action_simulate.triggered.connect(self.btn_start_navigation)
+
+        # 视觉导航菜单追加「仿真轨迹叠加」：底图上选择性显示轨迹生成域输出的轨迹
+        menu_nav = self.findChild(QMenu, 'menu_2')
+        if menu_nav is not None:
+            menu_nav.addSeparator()
+            menu_nav.addAction('仿真轨迹叠加', self.btn_overlay_trajs)
 
         self.action_clear.triggered.connect(self.clear_scene)
         self.action_resize.triggered.connect(self.initial_fit)
@@ -190,6 +198,7 @@ class NaviWindow(QMainWindow):
         self.background = self.scene.addPixmap(QPixmap(path))
         self.background.setZValue(0)
         QTimer.singleShot(0, self.initial_fit)
+        QTimer.singleShot(0, self.refresh_trajectories)
 
     def auto_load_basemap(self):
         if self.config:
@@ -313,6 +322,7 @@ class NaviWindow(QMainWindow):
             self.action_simulate.setText("暂停导航")
             self.action_stop.setEnabled(True)
             self.clear_scene()
+            self.refresh_trajectories()
             print(">>> 开始 EKF 线程")
         else:
             if not self.ekf_paused:
@@ -433,3 +443,183 @@ class NaviWindow(QMainWindow):
         for item in self.scene.items():
             if item is not self.background:  # 保留底图
                 self.scene.removeItem(item)
+        self._traj_items.clear()
+
+    # ------------------------------------------------------------------
+    # 仿真轨迹叠加
+    # ------------------------------------------------------------------
+    def btn_overlay_trajs(self):
+        """底图上选择性叠加显示轨迹生成域登记的仿真轨迹。"""
+        if self.background is None:
+            QMessageBox.information(self, "提示", "请先加载配置文件以显示底图。", QMessageBox.Ok)
+            return
+        dlg = TrajOverlayDialog(self.ctx, self)
+        if dlg.exec_() == QDialog.Accepted:
+            self.refresh_trajectories([] if dlg.clear_flag else dlg.selected_entries())
+
+    def refresh_trajectories(self, entries=None):
+        """在底图上叠加仿真轨迹；entries=None 时重绘 ctx 中登记的全部轨迹。"""
+        if self.background is None:
+            return
+        self._clear_trajectory_items()
+        if entries is None:
+            entries = getattr(self.ctx, 'generated_trajs', [])
+        rect = self.background.boundingRect()
+        if rect.width() <= 0 or rect.height() <= 0:
+            return
+        colors = [QColor(255, 90, 90), QColor(90, 200, 255), QColor(255, 200, 70),
+                  QColor(140, 255, 140), QColor(220, 140, 255), QColor(255, 255, 120)]
+
+        for k, entry in enumerate(entries):
+            pts = np.asarray(entry.get('points'), dtype=float)
+            if pts.ndim != 2 or pts.shape[0] < 2:
+                continue
+            color = colors[k % len(colors)]
+            sx, sy = self._map_traj_points(pts, rect)
+            path = QPainterPath(QPointF(sx[0], sy[0]))
+            for x, y in zip(sx[1:], sy[1:]):
+                path.lineTo(x, y)
+            pen = QPen(color)
+            pen.setWidth(3)
+            pen.setCosmetic(True)   # 缩放时保持像素线宽
+            item = self.scene.addPath(path, pen)
+            item.setZValue(20)
+            self._traj_items.append(item)
+
+            # 起点（绿）/ 终点（红）/ 名称标注
+            r = 4
+            start = self.scene.addEllipse(sx[0] - r, sy[0] - r, 2 * r, 2 * r,
+                                          pen=QPen(Qt.NoPen), brush=QBrush(QColor(0, 200, 0)))
+            end = self.scene.addEllipse(sx[-1] - r, sy[-1] - r, 2 * r, 2 * r,
+                                        pen=QPen(Qt.NoPen), brush=QBrush(QColor(255, 0, 0)))
+            label = self.scene.addText(entry.get('name', f'轨迹{k + 1}'),
+                                       QFont("Microsoft YaHei", 14, QFont.Bold))
+            label.setDefaultTextColor(color)
+            label.setPos(sx[0] + 8, sy[0] - 8)
+            for it in (start, end, label):
+                it.setZValue(21)
+                self._traj_items.append(it)
+
+    def _map_traj_points(self, pts, rect):
+        """将轨迹点 (N,2) 归一化映射到底图像素矩形（y 翻转保持北向上）。"""
+        mn, mx = pts.min(axis=0), pts.max(axis=0)
+        span = np.maximum(mx - mn, 1e-9)
+        scale = min(rect.width() * 0.9 / span[0], rect.height() * 0.9 / span[1])
+        norm = (pts - mn) * scale
+        w_used, h_used = span * scale
+        ox = rect.x() + (rect.width() - w_used) / 2.0
+        oy = rect.y() + (rect.height() - h_used) / 2.0
+        return ox + norm[:, 0], oy + (h_used - norm[:, 1])
+
+    def _clear_trajectory_items(self):
+        for item in self._traj_items:
+            self.scene.removeItem(item)
+        self._traj_items.clear()
+
+
+class TrajOverlayDialog(QDialog):
+    """选择性叠加仿真轨迹到底图：勾选已登记轨迹，或从文件导入。"""
+
+    def __init__(self, ctx, parent=None):
+        super().__init__(parent)
+        self.ctx = ctx
+        self.clear_flag = False
+        self.setWindowTitle("仿真轨迹叠加")
+        self.resize(360, 320)
+
+        root = QVBoxLayout(self)
+        root.addWidget(QLabel("选择要叠加显示的轨迹（勾选）："))
+
+        self.list = QListWidget()
+        self._reload_list()
+        root.addWidget(self.list, 1)
+
+        row = QHBoxLayout()
+        btn_import = QPushButton("导入轨迹文件…")
+        btn_all = QPushButton("全选")
+        btn_none = QPushButton("全不选")
+        btn_delete = QPushButton("删除所选")
+        btn_import.clicked.connect(self.import_file)
+        btn_all.clicked.connect(lambda: self._set_all(Qt.Checked))
+        btn_none.clicked.connect(lambda: self._set_all(Qt.Unchecked))
+        btn_delete.clicked.connect(self.delete_selected)
+        for b in (btn_import, btn_all, btn_none, btn_delete):
+            row.addWidget(b)
+        root.addLayout(row)
+
+        row2 = QHBoxLayout()
+        btn_ok = QPushButton("确定")
+        btn_clear = QPushButton("清除叠加")
+        btn_cancel = QPushButton("取消")
+        btn_ok.clicked.connect(self.accept)
+        btn_cancel.clicked.connect(self.reject)
+        btn_clear.clicked.connect(self._on_clear)
+        for b in (btn_ok, btn_clear, btn_cancel):
+            row2.addWidget(b)
+        root.addLayout(row2)
+
+    def _reload_list(self):
+        self.list.clear()
+        for e in getattr(self.ctx, 'generated_trajs', []):
+            item = QListWidgetItem(e['name'])
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked)
+            self.list.addItem(item)
+        if self.list.count() == 0:
+            item = QListWidgetItem("（暂无已登记轨迹，可导入文件）")
+            item.setFlags(Qt.NoItemFlags)
+            self.list.addItem(item)
+
+    def _set_all(self, state):
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            if item.flags() & Qt.ItemIsUserCheckable:
+                item.setCheckState(state)
+
+    def import_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择轨迹文件", "results", "轨迹文件 (*.csv *.txt);;All Files (*)")
+        if not path:
+            return
+        try:
+            data = np.loadtxt(path)
+            pts = data[:, 1:3] if data.ndim == 2 and data.shape[1] >= 3 else data[:, :2]
+            self.ctx.add_trajectory(f"文件-{Path(path).stem}", pts)
+            self._reload_list()
+        except Exception as e:
+            QMessageBox.warning(self, "错误", f"轨迹文件读取失败！\n{e}", QMessageBox.Ok)
+
+    def delete_selected(self):
+        """从登记表中删除勾选的轨迹（真正移除，而非仅清除绘制）。"""
+        names = self._checked_names()
+        if not names:
+            QMessageBox.information(self, "提示", "请先勾选要删除的轨迹。", QMessageBox.Ok)
+            return
+        ret = QMessageBox.question(
+            self, "删除轨迹",
+            f"将删除 {len(names)} 条轨迹登记（不可恢复）：\n"
+            + "\n".join(sorted(names)),
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if ret != QMessageBox.Yes:
+            return
+        self.ctx.generated_trajs = [e for e in self.ctx.generated_trajs
+                                    if e['name'] not in names]
+        self._reload_list()
+        # 即时刷新底图叠加，只重绘剩余勾选项
+        navi = self.parent()
+        if navi is not None and hasattr(navi, 'refresh_trajectories'):
+            navi.refresh_trajectories(self.selected_entries())
+
+    def _on_clear(self):
+        self.clear_flag = True
+        self.accept()
+
+    def _checked_names(self):
+        return {self.list.item(i).text() for i in range(self.list.count())
+                if self.list.item(i).flags() & Qt.ItemIsUserCheckable
+                and self.list.item(i).checkState() == Qt.Checked}
+
+    def selected_entries(self):
+        names = self._checked_names()
+        return [e for e in getattr(self.ctx, 'generated_trajs', [])
+                if e['name'] in names]

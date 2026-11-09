@@ -125,7 +125,8 @@ class MainWindow(QMainWindow):
         return win
 
     def open_trajectory_page(self):
-        return self._show_window('trajectory', lambda: TrajectoryPage(self.ctx, self))
+        return self._show_window(
+            'trajectory', lambda: TrajectoryPage(self.ctx, self.open_navi_window, self))
 
     def open_datalink_page(self):
         return self._show_window('datalink', lambda: DatalinkPage(self.ctx, self))

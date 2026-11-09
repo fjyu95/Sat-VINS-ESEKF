@@ -19,13 +19,16 @@ SCENE_W, SCENE_H, MARGIN = 800.0, 460.0, 50.0
 
 
 class TrajectoryPage(QMainWindow):
-    def __init__(self, ctx=None, parent=None):
+    def __init__(self, ctx=None, open_navi=None, parent=None):
         super().__init__(parent)
         self.ctx = ctx
+        self.open_navi = open_navi   # 由主界面注入：打开导航仿真窗口
         self.setWindowTitle("轨迹生成域")
         self.resize(760, 680)
 
         self.traj_points = None   # 当前生成的轨迹点 (N, 2)
+        self.traj_name = None     # 当前轨迹名称（用于导航界面叠加显示）
+        self.gen_count = 0
         self.replay_file = None
 
         central = QWidget()
@@ -43,7 +46,7 @@ class TrajectoryPage(QMainWindow):
         self.radio_preset = QRadioButton("飞行轨迹生成")
         self.radio_preset.setChecked(True)
         self.combo_traj = QComboBox()
-        self.combo_traj.addItems(["轨迹 1", "轨迹 2", "轨迹 3"])
+        self.combo_traj.addItems(["轨迹 1（测绘航线）", "轨迹 2（盘旋航线）", "轨迹 3（航点航线）"])
         self.combo_traj.setMinimumWidth(160)
         row1.addWidget(self.radio_preset)
         row1.addWidget(self.combo_traj)
@@ -74,10 +77,13 @@ class TrajectoryPage(QMainWindow):
         func_layout = QHBoxLayout(func_group)
         self.btn_generate = QPushButton("生成")
         self.btn_save = QPushButton("储存")
+        self.btn_to_navi = QPushButton("添加至导航界面")
         self.btn_generate.clicked.connect(self.generate)
         self.btn_save.clicked.connect(self.save)
+        self.btn_to_navi.clicked.connect(self.add_to_navi)
         func_layout.addWidget(self.btn_generate)
         func_layout.addWidget(self.btn_save)
+        func_layout.addWidget(self.btn_to_navi)
         func_layout.addStretch(1)
         root.addWidget(func_group)
 
@@ -105,25 +111,104 @@ class TrajectoryPage(QMainWindow):
             self.btn_pick_file.setToolTip(path)
 
     def _generate_preset(self, idx):
-        t = np.linspace(0.0, 1.0, 400)
-        if idx == 0:      # 轨迹 1：S 形航线
-            x = t * 4 * np.pi
-            y = np.sin(x)
-        elif idx == 1:    # 轨迹 2：环形航线
-            a = t * 2 * np.pi
-            x, y = np.cos(a), np.sin(a)
-        else:             # 轨迹 3：螺旋航线
-            a = t * 6 * np.pi
-            r = 0.15 + t
-            x, y = r * np.cos(a), r * np.sin(a)
-        return np.column_stack([x, y])
+        if idx == 0:
+            return self._gen_survey()
+        elif idx == 1:
+            return self._gen_orbit()
+        else:
+            return self._gen_waypoints()
+
+    @staticmethod
+    def _gen_survey(n_pass=6, length=6.0, spacing=0.8):
+        """测绘往返航线：平行航段 + 端部半圆掉头（覆盖式航拍典型航线）。"""
+        n_leg, n_arc = 60, 24
+        pts = []
+        for i in range(n_pass):
+            y = i * spacing
+            xs = np.linspace(0.0, length, n_leg) if i % 2 == 0 \
+                else np.linspace(length, 0.0, n_leg)
+            pts.append(np.column_stack([xs, np.full(n_leg, y)]))
+            if i < n_pass - 1:
+                cx = length if i % 2 == 0 else 0.0
+                cy = y + spacing / 2.0
+                a = np.linspace(-np.pi / 2, np.pi / 2, n_arc) if i % 2 == 0 \
+                    else np.linspace(-np.pi / 2, -3 * np.pi / 2, n_arc)
+                pts.append(np.column_stack([cx + spacing / 2 * np.cos(a),
+                                            cy + spacing / 2 * np.sin(a)]))
+        return np.vstack(pts)
+
+    @staticmethod
+    def _gen_orbit(r=1.2, n_orb=4):
+        """盘旋航线：直线进入 + 多圈定圆盘旋 + 直线退出（巡逻/待命典型航线）。"""
+        cx, cy = 3.0, 0.0
+        entry = np.column_stack([np.linspace(0.0, cx, 40), np.full(40, cy - r)])
+        a = np.linspace(-np.pi / 2, -np.pi / 2 + n_orb * 2 * np.pi, n_orb * 60)
+        orbit = np.column_stack([cx + r * np.cos(a), cy + r * np.sin(a)])
+        ext = np.column_stack([np.linspace(cx, cx + 3.0, 40), np.full(40, cy - r)])
+        return np.vstack([entry, orbit, ext])
+
+    def _gen_waypoints(self):
+        """航点航线：直线航段 + 限转弯半径圆弧过渡（多点任务航线）。"""
+        wps = np.array([[0.0, 0.0], [3.0, 0.4], [4.6, 1.8], [3.4, 3.4],
+                        [1.2, 3.0], [0.4, 1.6], [1.8, 0.6]])
+        return self._smooth_route(wps, turn_r=0.45)
+
+    @staticmethod
+    def _smooth_route(wps, turn_r, n_leg=40, n_arc=18):
+        """航点折线 → 带圆弧转弯的平滑航线（简化 Dubins 路径）。"""
+        wps = np.asarray(wps, dtype=float)
+        segs = []
+        start = wps[0]
+        for i in range(1, len(wps) - 1):
+            prev, cur, nxt = wps[i - 1], wps[i], wps[i + 1]
+            u = cur - prev
+            nu = np.linalg.norm(u)
+            v = nxt - cur
+            nv = np.linalg.norm(v)
+            if nu < 1e-9 or nv < 1e-9:
+                continue
+            u, v = u / nu, v / nv
+            delta = np.arccos(np.clip(np.dot(u, v), -1.0, 1.0))  # 转弯角
+            if delta < 1e-3:
+                continue
+            delta = min(delta, np.pi * 0.99)  # 避免 180° 掉头时正切发散
+            d = min(turn_r / np.tan(delta / 2.0), 0.45 * nu, 0.45 * nv)
+            t1 = cur - u * d
+            t2 = cur + v * d
+            segs.append(np.linspace(start, t1, n_leg))
+            # 转弯圆弧：圆心在内角平分线上，与两航段相切
+            r = d * np.tan(delta / 2.0)
+            m = v - u
+            m /= np.linalg.norm(m)
+            o = cur + m * (d / np.cos(delta / 2.0))
+            a1 = np.arctan2(t1[1] - o[1], t1[0] - o[0])
+            a2 = np.arctan2(t2[1] - o[1], t2[0] - o[0])
+            da = (a2 - a1 + np.pi) % (2 * np.pi) - np.pi
+            a = np.linspace(a1, a1 + da, n_arc)
+            segs.append(np.column_stack([o[0] + r * np.cos(a),
+                                         o[1] + r * np.sin(a)]))
+            start = t2
+        segs.append(np.linspace(start, wps[-1], n_leg))
+        return np.vstack(segs)
 
     def _generate_free_fly(self):
+        """模拟自由飞：随机航点 + 恒定速度/限转率追踪，生成平滑飞行轨迹。"""
         rng = np.random.default_rng()
-        n = 400
-        headings = np.cumsum(rng.normal(0.0, 0.05, n))   # 平滑随机航向
-        steps = np.column_stack([np.cos(headings), np.sin(headings)])
-        return np.cumsum(steps, axis=0)
+        wps = rng.uniform(-4.0, 4.0, (7, 2))
+        pos = np.array([0.0, 0.0])
+        heading = rng.uniform(0.0, 2 * np.pi)
+        v, omega_max, dt, tol = 0.12, 1.5, 0.1, 0.15  # 速度/最大转弯率/步长/到达阈值
+        pts = []
+        for wp in wps:
+            for _ in range(2000):
+                if np.linalg.norm(wp - pos) <= tol:
+                    break
+                desired = np.arctan2(wp[1] - pos[1], wp[0] - pos[0])
+                err = (desired - heading + np.pi) % (2 * np.pi) - np.pi
+                heading += np.clip(err, -omega_max * dt, omega_max * dt)
+                pos = pos + v * dt * np.array([np.cos(heading), np.sin(heading)])
+                pts.append(pos.copy())
+        return np.asarray(pts)
 
     def _load_replay(self):
         if not self.replay_file:
@@ -139,20 +224,43 @@ class TrajectoryPage(QMainWindow):
     def generate(self):
         try:
             if self.radio_preset.isChecked():
-                pts = self._generate_preset(self.combo_traj.currentIndex())
+                idx = self.combo_traj.currentIndex()
+                pts = self._generate_preset(idx)
+                base = ['测绘航线', '盘旋航线', '航点航线'][idx]
             elif self.radio_free.isChecked():
                 pts = self._generate_free_fly()
+                base = '自由飞'
             else:
                 pts = self._load_replay()
                 if pts is None:
                     return
+                base = f'回放-{Path(self.replay_file).stem}'
         except Exception as e:
             print(e)
             QMessageBox.critical(self, "错误", f"轨迹生成失败！\n{e}", QMessageBox.Ok)
             return
 
+        self.gen_count += 1
+        self.traj_name = f'{base}#{self.gen_count}'
         self.traj_points = np.asarray(pts, dtype=float)
         self._draw(self.traj_points)
+
+    def add_to_navi(self):
+        """生成后直接添加：登记到共享上下文并叠加显示到导航底图。"""
+        if self.traj_points is None or len(self.traj_points) == 0:
+            QMessageBox.information(self, "提示", "请先生成轨迹！", QMessageBox.Ok)
+            return
+        if self.ctx is None:
+            QMessageBox.warning(self, "提示", "无共享上下文，无法传递轨迹。", QMessageBox.Ok)
+            return
+        self.ctx.add_trajectory(self.traj_name, self.traj_points)
+        if self.open_navi is None:
+            QMessageBox.information(self, "已登记",
+                                    f"轨迹「{self.traj_name}」已登记，可在导航界面选择性添加。",
+                                    QMessageBox.Ok)
+            return
+        win = self.open_navi()
+        win.refresh_trajectories()
 
     def save(self):
         if self.traj_points is None or len(self.traj_points) == 0:

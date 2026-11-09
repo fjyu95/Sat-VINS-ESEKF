@@ -5,6 +5,8 @@
 """
 from pathlib import Path
 
+import numpy as np
+
 from utils.parser import load_config
 
 IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff']
@@ -17,6 +19,17 @@ class AppContext:
         self.config = load_config()      # 当前生效配置（dict）
         self.dehazed_dir = None          # 最近一次图像去雾输出目录
         self.enhanced_dir = None         # 最近一次图像增强输出目录
+        self.generated_trajs = []        # 轨迹生成域登记的仿真轨迹 [{'name', 'points'}]
+
+    def add_trajectory(self, name, points):
+        """登记/更新一条仿真轨迹（同名覆盖），返回该条目。"""
+        for entry in self.generated_trajs:
+            if entry['name'] == name:
+                entry['points'] = np.asarray(points, dtype=float)
+                return entry
+        entry = {'name': name, 'points': np.asarray(points, dtype=float)}
+        self.generated_trajs.append(entry)
+        return entry
 
     @property
     def basemap_path(self):
