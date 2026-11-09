@@ -27,6 +27,7 @@ from ui.pages.trajectory_page import TrajectoryPage
 from ui.pages.datalink_page import DatalinkPage
 from ui.pages.image_gen_page import ImageGenPage
 from ui.pages.ins_gnss_page import InsGnssPage
+from ui.pages.fault_page import FaultSimPage
 from ui.pages.data_process_page import DataPreprocessPage, InfoFusionPage, PostProcessPage
 from ui.pages.navi_window import NaviWindow
 
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
             ("机间链仿真模块", self.open_datalink_page),
             ("图像/视觉导航仿真模块", self.open_image_gen_page),
             ("惯导/卫星导航仿真模块", self.open_ins_gnss_page),
+            ("故障模拟单元", self.open_fault_page),
         ]))
         root.addWidget(self._domain_group("数据处理域", [
             ("数据预处理层", self.open_data_preprocess_page),
@@ -136,6 +138,9 @@ class MainWindow(QMainWindow):
 
     def open_ins_gnss_page(self):
         return self._show_window('ins_gnss', lambda: InsGnssPage(self.ctx, self))
+
+    def open_fault_page(self):
+        return self._show_window('fault', lambda: FaultSimPage(self.ctx, self))
 
     def open_data_preprocess_page(self):
         return self._show_window(
