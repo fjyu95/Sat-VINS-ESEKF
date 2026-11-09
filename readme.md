@@ -28,8 +28,9 @@ GeoVIO 是一套面向无人机相对导航的全数字仿真验证环境。核�
 ### 3. 图像预处理（`preprocessing/`）
 
 - `enhance/enhance.py`：CLAHE 自适应直方图均衡，提升弱光影像对比度。
-- `dehaze/dehaze.py`：轻量 CNN 去雾网络（需权重 `preprocessing/dehaze/snapshots/dehazer.pth`）。
+- `dehaze/dehaze.py`：AOD-Net 去雾网络（需权重 `preprocessing/dehaze/snapshots/dehazer.pth`），无 CUDA 时自动回退 CPU。
 - `metrics.py`：图像质量指标（信息熵、平均梯度、对比度为无参考指标；PSNR、SSIM 以原图为伪参考、表示变化幅度而非真值质量），供算法测试使用。
+- `fault_inject.py`：文本类数据文件故障注入（数值偏置/噪声/中断，原文件备份为 `*.bak` 可还原），供功能域故障模拟单元使用。
 - 算法测试入口：数据预处理层「预处理算法测试」，固定使用 AOD-Net 去雾 / CLAHE 增强，测试数据默认 `preprocessing/*/test_data`（支持自选目录/文件），结果、对比图与 `metrics.csv` 输出至 `preprocessing_test/`。
 
 ### 4. 结果统计分析（`stats_analysis/`）
@@ -42,9 +43,9 @@ GeoVIO 是一套面向无人机相对导航的全数字仿真验证环境。核�
 
 PyQt5 界面按三个域组织，各按钮打开独立子窗口（`ui/pages/`）：
 
-- **轨迹生成域**：轨迹生成/回放（`trajectory_page`）。
-- **功能域**：机间链仿真、图像/视觉导航仿真、惯导/卫星导航仿真。
-- **数据处理域**：数据预处理层、信息融合层（承载视觉/惯性融合导航 `NaviWindow`）、后置处理层。
+- **轨迹生成域**：轨迹生成/回放（`trajectory_page`）。内置三种仿真飞行航线——测绘航线（平行航段 + 端部半圆掉头）、盘旋航线（进场直线 + 多圈定圆盘旋）、航点航线（直线 + 限半径圆弧转弯），另有限转率航点追踪的"模拟自由飞"；生成后可一键「添加至导航界面」叠加到底图。
+- **功能域**：机间链仿真、图像/视觉导航仿真、惯导/卫星导航仿真、故障模拟单元（`fault_page`：选择 txt/csv 等数值文本注入故障，直接覆盖原文件并备份 `*.bak`；对航拍元数据 txt 注入后导航仿真真实生效，可一键还原）。
+- **数据处理域**：数据预处理层、信息融合层（承载视觉/惯性融合导航 `NaviWindow`；菜单「视觉导航 → 仿真轨迹叠加」可在底图上勾选/导入/删除已生成轨迹）、后置处理层。
 
 菜单栏支持界面风格切换（Fusion/Windows/GTK+）、字体大小、深色主题、恢复默认配置。
 
@@ -59,7 +60,7 @@ GeoVIO-v1.2/
 ├── ESEKF_IMU/              # 误差状态扩展卡尔曼滤波器（IMU 预测 + 量测更新）
 ├── visual_localization/    # 视觉定位：LoFTR 配准(geo_registration) + PnP(solve_uav)
 │   └── ckpt/               # DINOv3 权重目录（需自行下载，不入库）
-├── preprocessing/          # 图像增强(enhance)与去雾(dehaze)
+├── preprocessing/          # 图像增强/去雾、质量指标(metrics)与文本故障注入(fault_inject)
 ├── relative_navi/          # 相对导航 TCP 仿真（server/client）
 ├── stats_analysis/         # 轨迹误差统计与数据查看工具
 ├── ui/                     # PyQt5 界面（pages/、样式表、界面样图 samples/）

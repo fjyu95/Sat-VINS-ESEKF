@@ -190,7 +190,7 @@
   </div>
   <h1>无人相对导航全数字仿真验证环境 · 操作使用手册</h1>
   <p class="sub">本手册覆盖环境安装、数据准备、参数配置、仿真界面操作、视觉惯性导航流水线、相对导航联调、结果统计分析及常见问题排查的完整流程。</p>
-  <p class="meta">完成单位：西北工业大学 &nbsp;|&nbsp; 文档版本：v1.2 &nbsp;|&nbsp; 更新日期：2026-10</p>
+  <p class="meta">完成单位：西北工业大学 &nbsp;|&nbsp; 文档版本：v1.2 &nbsp;|&nbsp; 更新日期：2026-11</p>
 </header>
 
 <div class="layout">
@@ -234,7 +234,7 @@
     <tr><td>导航流水线</td><td><code>vio.py</code></td><td><code>EKFWorker</code> 线程逐帧执行 IMU 预测 → 配准 → PnP → EKF 融合</td></tr>
     <tr><td>滤波器</td><td><code>ESEKF_IMU/</code></td><td>误差状态扩展卡尔曼滤波（predict / update）</td></tr>
     <tr><td>视觉定位</td><td><code>visual_localization/</code></td><td>DINOv3 粗对准、LoFTR 配准、PnP-RANSAC + LM 精化</td></tr>
-    <tr><td>图像预处理</td><td><code>preprocessing/</code></td><td>CNN 去雾（dehaze）、CLAHE/gamma 增强（enhance）</td></tr>
+    <tr><td>图像预处理</td><td><code>preprocessing/</code></td><td>AOD-Net 去雾（dehaze）、CLAHE 增强（enhance）、质量指标（metrics）、文本故障注入（fault_inject）</td></tr>
     <tr><td>相对导航</td><td><code>relative_navi/</code></td><td>主从机 TCP 仿真：server 广播轨迹，client 解算相对位置</td></tr>
     <tr><td>统计分析</td><td><code>stats_analysis/</code></td><td>逐帧误差统计图、配准统计表、匹配结果浏览</td></tr>
   </table>
@@ -258,7 +258,7 @@ pip install -r requirements.txt</code></pre>
   <h3>2.2 硬件要求</h3>
   <ul>
     <li><b>推荐</b>：NVIDIA 显卡 + 支持 CUDA 12.8 的驱动，DINOv3 / LoFTR / 去雾均在 GPU 上运行。</li>
-    <li><b>无 GPU</b>：去雾功能不可用（代码强制 <code>.cuda()</code>）；LoFTR 与 DINOv3 自动退化到 CPU，速度显著下降。</li>
+    <li><b>无 GPU</b>：去雾自动回退 CPU 推理（速度较慢）；LoFTR 与 DINOv3 自动退化到 CPU，速度显著下降。</li>
   </ul>
 </section>
 
@@ -389,14 +389,18 @@ python main_window.py</code></pre>
     <h4>三种模式（单选）</h4>
     <table>
       <tr><th>模式</th><th>操作</th><th>说明</th></tr>
-      <tr><td><b>飞行轨迹生成</b></td><td>下拉选择 轨迹 1/2/3</td><td>内置模板：S 形航线、环形航线、螺旋航线</td></tr>
-      <tr><td><b>模拟自由飞</b></td><td>直接生成</td><td>平滑随机航向累积的自由轨迹</td></tr>
+      <tr><td><b>飞行轨迹生成</b></td><td>下拉选择 轨迹 1/2/3</td><td>仿真飞行航线模板：轨迹 1 测绘航线（平行航段 + 端部半圆掉头）、轨迹 2 盘旋航线（直线进场 + 多圈定圆盘旋 + 直线退出）、轨迹 3 航点航线（直线航段 + 限半径圆弧转弯）</td></tr>
+      <tr><td><b>模拟自由飞</b></td><td>直接生成</td><td>恒定速度 + 限转率追踪随机航点的运动学仿真，轨迹平滑自然</td></tr>
       <tr><td><b>试飞数据回放</b></td><td>「选择文件路径…」载入 CSV/TXT</td><td>兼容 <code>traj_esekf.csv</code>（首列时间戳）与两列 xy 格式</td></tr>
     </table>
-    <p>点击 <span class="kbtn">生成</span> 在轨迹生成区域绘制（绿色起点 / 红色终点，视图可缩放）；点击 <span class="kbtn">储存</span> 保存为 CSV（默认 <code>results/generated_traj.csv</code>）。</p>
+    <p>点击 <span class="kbtn">生成</span> 在轨迹生成区域绘制（绿色起点 / 红色终点，视图可缩放）；点击 <span class="kbtn">储存</span> 保存为 CSV（默认 <code>results/generated_traj.csv</code>）；点击 <span class="kbtn">添加至导航界面</span> 将轨迹登记为仿真轨迹并打开融合导航窗口叠加显示（重复生成自动编号，如 测绘航线#1）。</p>
     <figure>
-      <img src="../ui/samples/2_轨迹生成域GUI界面.png" alt="轨迹生成域界面">
-      <figcaption>图 6-2　轨迹生成域：模式选择与轨迹绘制区域</figcaption>
+      <img src="../ui/samples/9_轨迹生成域-航点航线.png" alt="轨迹生成域界面">
+      <figcaption>图 6-2　轨迹生成域：模式选择、生成/储存/添加至导航界面与轨迹绘制区域</figcaption>
+    </figure>
+    <figure>
+      <img src="../ui/samples/11_轨迹生成-叠加显示对比.png" alt="轨迹生成与底图叠加对比">
+      <figcaption>图 6-3　轨迹生成后叠加到导航底图（左：生成预览，右：底图叠加显示）</figcaption>
     </figure>
   </div>
 
@@ -411,7 +415,7 @@ python main_window.py</code></pre>
     </ul>
     <figure>
       <img src="../ui/samples/3_轨迹生成域-机间链仿真单元GUI界面.png" alt="机间链仿真单元界面">
-      <figcaption>图 6-3　机间链仿真单元</figcaption>
+      <figcaption>图 6-4　机间链仿真单元</figcaption>
     </figure>
   </div>
   <div class="card">
@@ -424,7 +428,7 @@ python main_window.py</code></pre>
     </ul>
     <figure>
       <img src="../ui/samples/4_图像生成单元GUI界面.png" alt="图像生成单元界面">
-      <figcaption>图 6-4　图像生成单元</figcaption>
+      <figcaption>图 6-5　图像生成单元</figcaption>
     </figure>
   </div>
   <div class="card">
@@ -436,7 +440,22 @@ python main_window.py</code></pre>
     </ul>
     <figure>
       <img src="../ui/samples/5_惯性卫星导航仿真单元GUI界面.png" alt="惯性卫星导航仿真单元界面">
-      <figcaption>图 6-5　惯性/卫星导航仿真单元</figcaption>
+      <figcaption>图 6-6　惯性/卫星导航仿真单元</figcaption>
+    </figure>
+  </div>
+  <div class="card">
+    <h4>故障模拟单元</h4>
+    <ul>
+      <li><b>故障类型</b>：数值偏置 / 数值噪声 / 数据中断（百分比置空）；</li>
+      <li><b>故障强度</b>：0–100 % 数值扰动幅度；</li>
+      <li><b>选择文件…</b>：选择要注入的文本类数据文件（航拍元数据 <code>*.txt</code>、轨迹 <code>*.csv</code> 等数值文本，GBK/UTF-8 自动识别）；</li>
+      <li><span class="kbtn">注入故障</span>：原文件备份为 <code>*.bak</code>，故障内容覆盖写回原路径——对航拍图像同名 txt 元数据注入后，导航仿真直接读到故障数据；对「键值对」行仅扰动带物理单位（度/米/秒）的数值字段，时间戳等不破坏；</li>
+      <li><span class="kbtn">还原原文件</span>：从 <code>*.bak</code> 备份恢复原文件。</li>
+    </ul>
+    <div class="warn">注入会直接修改所选原始数据文件，注入前请确认文件用途；测试完成后及时「还原原文件」，避免残留故障数据影响后续仿真。</div>
+    <figure>
+      <img src="../ui/samples/8_故障模拟单元GUI界面.png" alt="故障模拟单元界面">
+      <figcaption>图 6-7　故障模拟单元：选择文件注入数值故障 / 一键还原</figcaption>
     </figure>
   </div>
 
@@ -447,12 +466,43 @@ python main_window.py</code></pre>
       <tr><th>按钮</th><th>功能</th></tr>
       <tr><td><b>读入数据</b></td><td>显示航拍图像目录与帧数、底图路径（需先加载配置）</td></tr>
       <tr><td><b>数据预处理 ▾</b></td><td>下拉菜单：<b>图像去雾</b>（仅彩色图，输出 <code>dehazed/</code>）/ <b>图像增强</b>（CLAHE，优先作用于去雾结果，输出 <code>enhanced/</code>）</td></tr>
+      <tr><td><b>预处理算法测试</b></td><td>独立评估去雾/增强算法效果（详见 6.4 节）</td></tr>
       <tr><td><b>发送至融合层</b></td><td>登记最新预处理结果为导航输入（优先级：增强 &gt; 去雾 &gt; 原图），并打开信息融合层</td></tr>
     </table>
     <div class="warn">只能对原图去雾，不能先增强再去雾；增强会自动过滤 <code>combined_*</code> 对比图，仅处理 <code>dehazed_*</code>。</div>
     <figure>
-      <img src="../ui/samples/6_数据处理层GUI界面.png" alt="数据处理层界面">
-      <figcaption>图 6-6　数据处理域三层页面</figcaption>
+      <img src="../ui/samples/12_数据预处理层-算法测试入口.png" alt="数据处理层界面">
+      <figcaption>图 6-8　数据预处理层：读入数据 / 数据预处理 / 预处理算法测试 / 发送至融合层</figcaption>
+    </figure>
+  </div>
+
+  <h3>6.4 预处理算法测试</h3>
+  <div class="card">
+    <p>数据预处理层「预处理算法测试」用于<b>独立评估</b>去雾与增强算法效果，测试输出与正式预处理流程完全隔离（不占用 <code>dehazed/</code>、<code>enhanced/</code>，不影响「发送至融合层」）。</p>
+    <table>
+      <tr><th>项</th><th>说明</th></tr>
+      <tr><td><b>测试算法</b></td><td>固定两种：图像去雾（AOD-Net）/ 图像增强（CLAHE），无算法变体选项</td></tr>
+      <tr><td><b>测试数据</b></td><td>默认 <code>preprocessing/dehaze|enhance/test_data</code>（随算法自动切换），支持「选择目录…/选择文件…」自选数据</td></tr>
+      <tr><td><b>输出位置</b></td><td><code>preprocessing_test/dehazed|enhanced/&lt;时间戳&gt;/</code>：结果图、<code>combined_*</code> 对比图与 <code>metrics.csv</code></td></tr>
+    </table>
+    <figure>
+      <img src="../ui/samples/14_预处理算法测试对话框.png" alt="预处理算法测试对话框">
+      <figcaption>图 6-9　预处理算法测试对话框</figcaption>
+    </figure>
+    <p>测试完成后自动弹出<b>并排对比查看器</b>：左原图右结果（滚轮缩放、拖拽平移、←/→ 翻页），下方显示每张图指标，状态栏显示整批均值，另有「指标统计表」（可排序）与「打开输出目录」。</p>
+    <h4>指标含义</h4>
+    <ul>
+      <li><b>信息熵 / 平均梯度 / 对比度σ</b>：无参考指标，处理后升高表示细节/纹理/对比度恢复增多，反映质量改善；</li>
+      <li><b>PSNR / SSIM（对原图）</b>：无真值 GT，仅以原图为伪参考，表示算法引入的<b>变化幅度</b>而非绝对质量——数值越低说明处理力度越大；</li>
+      <li><b>耗时</b>：单张处理时间。</li>
+    </ul>
+    <figure>
+      <img src="../ui/samples/13_算法测试对比-图像去雾.png" alt="去雾测试对比">
+      <figcaption>图 6-10　算法测试对比：图像去雾</figcaption>
+    </figure>
+    <figure>
+      <img src="../ui/samples/15_算法测试对比-图像增强.png" alt="增强测试对比">
+      <figcaption>图 6-11　算法测试对比：图像增强</figcaption>
     </figure>
   </div>
   <div class="card">
@@ -498,9 +548,30 @@ python main_window.py</code></pre>
     <li><b>绿色连线</b>：飞行轨迹 / PnP 定位点与匹配图像中心的关联线（仅视觉量测生效时绘制）；</li>
     <li><b>半透明航拍图块</b>：当前帧经单应变换投影到底图位置的配准画面，历史帧以更低透明度留存；</li>
     <li><b>黄色编号</b>：帧序号标注；</li>
-    <li><b>左上角标签</b>：<code>EKF 任务进度: i/n | 状态</code>。</li>
+    <li><b>左上角标签</b>：<code>EKF 任务进度: i/n | 状态</code>；</li>
+    <li><b>彩色叠加折线</b>：已叠加的仿真轨迹（见 7.3），每条不同颜色，起点绿点 / 终点红点 / 名称标注。</li>
   </ul>
   <div class="tip">视图支持滚轮缩放与拖拽平移；窗口缩放时场景自动保持宽高比适配。</div>
+
+  <h3>7.3 仿真轨迹叠加</h3>
+  <p>菜单 <b>视觉导航 → 仿真轨迹叠加</b> 打开轨迹叠加对话框，将轨迹生成域输出的轨迹选择性叠加显示在卫星底图上，用于直观查看航线布局。</p>
+  <table>
+    <tr><th>操作</th><th>说明</th></tr>
+    <tr><td><b>勾选轨迹</b></td><td>列表显示轨迹生成域「添加至导航界面」登记的全部轨迹（如 测绘航线#16），勾选后确定叠加</td></tr>
+    <tr><td><b>导入轨迹文件…</b></td><td>从磁盘载入 CSV/TXT 轨迹文件一并叠加（兼容 <code>traj_esekf.csv</code> 与两列 xy 格式）</td></tr>
+    <tr><td><b>删除所选</b></td><td>将勾选轨迹从登记表中<b>真正删除</b>（有确认提示），并即时刷新底图</td></tr>
+    <tr><td><b>清除叠加</b></td><td>仅擦除已绘制图元，登记表保留可再次叠加</td></tr>
+  </table>
+  <p>叠加时轨迹按其包围盒等比缩放至底图约 90% 占比并居中，y 轴翻转保持北向上；轨迹线宽固定不随缩放变化。</p>
+  <div class="warn">仿真轨迹为归一化仿真坐标，叠加是几何适配显示，并非经纬度地理配准。</div>
+  <figure>
+    <img src="../ui/samples/16_仿真轨迹叠加对话框.png" alt="仿真轨迹叠加对话框">
+    <figcaption>图 7-1　仿真轨迹叠加对话框：勾选 / 导入 / 删除轨迹</figcaption>
+  </figure>
+  <figure>
+    <img src="../ui/samples/10_导航界面-仿真轨迹叠加.png" alt="底图轨迹叠加效果">
+    <figcaption>图 7-2　底图叠加效果：红色测绘航线 + 蓝色航点航线</figcaption>
+  </figure>
 </section>
 
 <!-- ============================================================ -->
@@ -583,6 +654,7 @@ python relative_navi/client.py 5   <span class="cm"># 或手动指定编号</spa
     <tr><td><code>image_matches_results/</code></td><td>匹配可视化图（供结果比较浏览）</td><td>图像</td></tr>
     <tr><td><code>logs/</code></td><td>运行日志（stdout/stderr 重定向）</td><td>log</td></tr>
     <tr><td><code>&lt;dataset&gt;/dehazed/、enhanced/</code></td><td>预处理输出（去雾/增强图 + combined 对比图）</td><td>图像</td></tr>
+    <tr><td><code>preprocessing_test/&lt;dehazed|enhanced&gt;/&lt;时间戳&gt;/</code></td><td>算法测试输出（结果图、对比图、metrics.csv），独立于主流程</td><td>图像 + CSV</td></tr>
   </table>
   <div class="tip">以上均为运行产物，已被 <code>.gitignore</code> 忽略。</div>
 </section>
@@ -615,7 +687,7 @@ python navi_stats_plot.py   <span class="cm"># 柱状+折线误差图，标注 M
 ├── ESEKF_IMU/              <span class="cm"># 误差状态扩展卡尔曼滤波器</span>
 ├── visual_localization/    <span class="cm"># 视觉定位：LoFTR 配准 + PnP 解算</span>
 │   └── ckpt/               <span class="cm"># DINOv3 权重（自行下载，不入库）</span>
-├── preprocessing/          <span class="cm"># 图像增强(enhance)与去雾(dehaze)</span>
+├── preprocessing/          <span class="cm"># 图像增强/去雾、质量指标(metrics)、文本故障注入(fault_inject)</span>
 ├── relative_navi/          <span class="cm"># 相对导航 TCP 仿真（server/client）</span>
 ├── stats_analysis/         <span class="cm"># 轨迹误差统计与数据查看工具</span>
 ├── ui/                     <span class="cm"># PyQt5 界面（pages/、样式表、界面样图 samples/）</span>
@@ -633,7 +705,7 @@ python navi_stats_plot.py   <span class="cm"># 柱状+折线误差图，标注 M
     <tr><td>大量帧配准失败</td><td>检查金字塔层级分辨率覆盖、视场中心姿态角与 <code>camera_axis_*_bias</code>；适当增大 <code>scale_factor_crop_pyramid</code></td></tr>
     <tr><td>VIO 占比低（多数帧仅 IMU）</td><td>放宽 <code>register_min_inliers/min_ratio</code>，或调大 <code>ekf_fusion_threshold</code>；同时核对内参 <code>camera_intrinsics</code></td></tr>
     <tr><td>LoFTR 配准 CUDA OOM</td><td>图像超过 <code>register_loftr_max_side</code> 时自动降采样，OOM 时逐级减半重试；仍失败则抛出异常——关闭其他 GPU 进程、调小 <code>crop_scale</code> 或 <code>register_loftr_max_side</code> 后重试</td></tr>
-    <tr><td>去雾无效果/报错</td><td>去雾仅支持彩色图像且需要 GPU 与 <code>snapshots/dehazer.pth</code> 权重；灰度图会提示不支持</td></tr>
+    <tr><td>去雾无效果/报错</td><td>去雾仅支持彩色图像且需 <code>snapshots/dehazer.pth</code> 权重；灰度图会提示不支持；无 GPU 时自动 CPU 推理（较慢）</td></tr>
     <tr><td>相对导航 client 连不上</td><td>确认主机防火墙放行 50007 端口、两机互 ping、<code>SERVER_IP</code> 已改为实际局域网 IP</td></tr>
     <tr><td>界面乱码或样式异常</td><td>菜单「设置 → 界面风格」切换 Fusion/Windows；字体大小可在「字体大小」菜单调整</td></tr>
     <tr><td>恢复出厂参数</td><td>菜单「设置 → 恢复默认配置文件」重置 <code>configs/default.yaml</code></td></tr>
