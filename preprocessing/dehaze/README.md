@@ -1,6 +1,9 @@
 # PyTorch-Image-Dehazing
 PyTorch implementation of some single image dehazing networks. 
 
+Source code: https://github.com/MayankSingal/PyTorch-Image-Dehazing
+(AOD-Net original author: https://github.com/Boyiliee/AOD-Net)
+
 Currently Implemented:
 **AOD-Net**: An extremely lightweight model (< 10 KB). Results are good.
 
@@ -21,11 +24,8 @@ Currently Implemented:
 
 **Evaluation:**
 WIP.  
-Some qualitative results are shown below:
+Some qualitative results are shown below (left: hazy input, right: dehazed output; produced by GeoVIO's preprocessing-test tool on `test_data/`):
 
-![Alt text](results/man.png?raw=true "Title")  
-![Alt text](results/guogong.png?raw=true "Title")  
-![Alt text](results/test4.jpg?raw=true "Title")  
-![Alt text](results/test9.jpg?raw=true "Title")  
-![Alt text](results/test13.jpg?raw=true "Title")  
-![Alt text](results/test15.jpg?raw=true "Title")
+![forest](results/forest.png?raw=true "forest")  
+![foggy house](results/foggy_house.jpg?raw=true "foggy house")  
+![city](results/city.png?raw=true "city")

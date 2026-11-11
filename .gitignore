@@ -9,6 +9,7 @@ preprocessing_test/
 image_matches_results/
 logs/
 results/
+!preprocessing/dehaze/results/
 /*.png
 *.rar
 *.zip
