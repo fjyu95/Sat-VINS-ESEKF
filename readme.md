@@ -87,9 +87,9 @@ pip install -r requirements.txt
    - `DEM/`：数字高程模型（用于匹配点高程查询），路径见 `dem_path`。
    - `basemap/`：可视化底图（默认 `basemap/L16.tif`）。
 2. **模型权重**：
-   - DINOv3：`visual_localization/ckpt/dinov3-vitl16-pretrain-sat493m`（首帧旋转粗对准必需）。
-   - 去雾：`preprocessing/dehaze/snapshots/dehazer.pth`（仅使用去雾功能时需要）。
-   - LoFTR outdoor 权重由 kornia 自动下载。
+   - DINOv3：`visual_localization/ckpt/dinov3-vitl16-pretrain-sat493m`（约 1.12 GB，首帧旋转粗对准必需）。
+   - 去雾：`preprocessing/dehaze/snapshots/dehazer.pth`（约 8.4 KB，仅使用去雾功能时需要）。
+   - LoFTR outdoor：放至 `visual_localization/ckpt/loftr_outdoor.ckpt`（约 44 MB）；缺失时由 kornia 自动下载至 torch hub 缓存。
 
 ## 操作说明
 

@@ -171,10 +171,33 @@ def validate_quad_geometry(n_inlier, inlier_ratio, prj_error, corners, max_area=
     return True, "Valid"
 
 
+_LOFTR_MATCHER = None
+
+
+def _get_loftr_matcher(use_cuda):
+    """惰性构建 LoFTR 匹配器（模块级缓存，避免逐帧重建）。
+
+    优先使用本地权重 visual_localization/ckpt/loftr_outdoor.ckpt；
+    不存在时回退 kornia 自动下载（缓存于 torch hub checkpoints）。
+    """
+    global _LOFTR_MATCHER
+    if _LOFTR_MATCHER is not None:
+        return _LOFTR_MATCHER
+    local_ckpt = Path(__file__).parent / 'ckpt' / 'loftr_outdoor.ckpt'
+    if local_ckpt.is_file():
+        loftr = LoFTR(pretrained=None)
+        sd = torch.load(local_ckpt, map_location='cpu')
+        loftr.load_state_dict(sd['state_dict'])
+        print(f'[LoFTR] 使用本地权重 {local_ckpt}')
+    else:
+        loftr = LoFTR('outdoor')
+    _LOFTR_MATCHER = loftr.eval().cuda() if use_cuda else loftr.eval()
+    return _LOFTR_MATCHER
+
+
 def loftr_match(src_img, dst_img, filename='', **kwargs):
-    loftr = LoFTR('outdoor')
     use_cuda = torch.cuda.is_available()
-    matcher = loftr.eval().cuda() if use_cuda else loftr.eval()
+    matcher = _get_loftr_matcher(use_cuda)
 
     # 读取两张图 → gray tensor [0,1] 1×1×H×W, float32
     def load_torch(img):

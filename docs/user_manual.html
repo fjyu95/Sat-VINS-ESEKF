@@ -282,9 +282,9 @@ pip install -r requirements.txt</code></pre>
   <h3>3.2 模型权重</h3>
   <table>
     <tr><th>权重</th><th>存放路径</th><th>用途</th><th>必需性</th></tr>
-    <tr><td>DINOv3（dinov3-vitl16-pretrain-sat493m）</td><td><code>visual_localization/ckpt/</code></td><td>首帧旋转角自动估计（粗对准）</td><td>仅当 <code>rotation_angle: -1</code> 时必需</td></tr>
-    <tr><td>dehazer.pth</td><td><code>preprocessing/dehaze/snapshots/</code></td><td>CNN 图像去雾</td><td>仅使用去雾功能时必需</td></tr>
-    <tr><td>LoFTR outdoor</td><td>kornia 缓存</td><td>航拍图-底图配准</td><td>首次运行自动下载</td></tr>
+    <tr><td>DINOv3（dinov3-vitl16-pretrain-sat493m，约 1.12 GB）</td><td><code>visual_localization/ckpt/</code></td><td>首帧旋转角自动估计（粗对准）</td><td>仅当 <code>rotation_angle: -1</code> 时必需</td></tr>
+    <tr><td>dehazer.pth（约 8.4 KB）</td><td><code>preprocessing/dehaze/snapshots/</code></td><td>CNN 图像去雾</td><td>仅使用去雾功能时必需</td></tr>
+    <tr><td>LoFTR outdoor（约 44 MB）</td><td><code>visual_localization/ckpt/loftr_outdoor.ckpt</code></td><td>航拍图-底图配准</td><td>优先读本地文件；缺失时 kornia 自动下载至 torch hub 缓存</td></tr>
   </table>
   <div class="tip">权重目录与数据集已在 <code>.gitignore</code> 中忽略，需另行分发。</div>
 </section>

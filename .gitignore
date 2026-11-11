@@ -5,7 +5,8 @@ preprocessing/enhance/enhanced/
 preprocessing/dehaze/dehazed/
 preprocessing/dehaze/enhanced/
 preprocessing_test/
-# visual_localization/ckpt/
+visual_localization/ckpt/
+!visual_localization/ckpt/put dinov3-vitl16-pretrain-sat493m dir here
 image_matches_results/
 logs/
 results/
